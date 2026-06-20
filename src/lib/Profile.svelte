@@ -12,6 +12,7 @@
   let showPresetPicker = $state(false);
   let selectedBio = $state("");
   let error = $state(null);
+  let activeTab = $state("overview");
 
   const presetBios = [
     "Learning something new every day 🚀",
@@ -30,6 +31,22 @@
   const SUPABASE_URL = config.SUPABASE_URL || "";
   const SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY || "";
 
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "worlds", label: "Worlds" },
+    { id: "quests", label: "Quests" },
+    { id: "courses", label: "Courses" },
+    { id: "leaderboard", label: "Leaderboard" },
+  ];
+
+  const sampleBadges = [
+    { name: "Early Adopter", icon: "🌟", color: "#ffd700" },
+    { name: "Quest Master", icon: "⚔️", color: "#ff3b12" },
+    { name: "Top Contributor", icon: "🏆", color: "#00bfff" },
+    { name: "Speed Runner", icon: "⚡", color: "#9b59b6" },
+    { name: "Team Player", icon: "🤝", color: "#2ecc71" },
+  ];
+
   function getInitials(name) {
     if (!name) return "?";
     return name
@@ -47,22 +64,32 @@
     }
 
     try {
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.userId}&select=*`,
-        {
-          headers: {
-            apiKey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
+      const [profileRes, allRes] = await Promise.all([
+        fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.userId}&select=*`,
+          {
+            headers: {
+              apiKey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        ),
+        fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?select=level`,
+          {
+            headers: {
+              apiKey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        ),
+      ]);
 
-      if (res.ok) {
-        const data = await res.json();
+      if (profileRes.ok) {
+        const data = await profileRes.json();
         if (data.length > 0) {
           profile = data[0];
         } else {
-          // No profile yet — create one with session name
           profile = {
             id: session.userId,
             name: session.name || "User",
@@ -79,12 +106,12 @@
             total_points: 0,
             banner_url: null,
             avatar_url: null,
+            badges: [],
           };
           await saveProfile(profile, true);
         }
       } else {
-        // Table might not exist or permission denied
-        console.warn("Profile fetch failed:", res.status, await res.text());
+        console.warn("Profile fetch failed:", profileRes.status, await profileRes.text());
         error = "Could not load profile. Make sure the profiles table exists in Supabase.";
         profile = {
           id: session.userId,
@@ -102,7 +129,18 @@
           total_points: 0,
           banner_url: null,
           avatar_url: null,
+          badges: [],
         };
+      }
+
+      if (allRes.ok) {
+        const allProfiles = await allRes.json();
+        const myLevel = profile?.level ?? 1;
+        const rank = allProfiles.filter((p) => (p.level ?? 1) > myLevel).length + 1;
+        if (profile && profile.rank !== rank) {
+          profile.rank = rank;
+          saveProfile({ ...profile, rank }, false);
+        }
       }
     } catch (err) {
       console.warn("Profile fetch error:", err);
@@ -123,6 +161,7 @@
         total_points: 0,
         banner_url: null,
         avatar_url: null,
+        badges: [],
       };
     }
 
@@ -150,6 +189,7 @@
         total_points: data.total_points ?? 0,
         banner_url: data.banner_url ?? null,
         avatar_url: data.avatar_url ?? null,
+        badges: data.badges ?? [],
         updated_at: new Date().toISOString(),
       };
 
@@ -239,6 +279,10 @@
       fetchProfile();
     }
   });
+
+  let xpProgress = $derived(
+    profile ? ((profile.xp ?? 0) / (profile.xp_next ?? 100)) * 100 : 0
+  );
 </script>
 
 {#if session && !loading}
@@ -264,120 +308,187 @@
         style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
       >
         <div class="banner-overlay"></div>
-        <span class="change-banner-hint">Change banner</span>
+        <div class="banner-content">
+          <span class="banner-username">{profile?.name || session?.name || "User"}</span>
+          <div class="banner-socials">
+            <span class="banner-social">🌐</span>
+            <span class="banner-social">🐦</span>
+          </div>
+        </div>
       </div>
 
       <div class="profile-content">
         <div class="profile-header">
-          <div class="profile-info">
-            <span
-              class="profile-avatar"
-              role="button"
-              tabindex="0"
-              title="Click to change profile picture"
-              onclick={changeAvatar}
-              onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
-            >
-              {profile?.avatar_url
-                ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
-                : getInitials(profile?.name || session?.name || "User")}
-              <span class="change-avatar-hint">Change</span>
-            </span>
-            <div class="profile-name-section">
-              <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
-              <div class="profile-bio-area">
-                {#if editingBio}
-                  <div class="bio-edit">
-                    <div class="preset-bios">
-                      <p class="preset-label">Choose a bio:</p>
-                      <div class="preset-grid">
-                        {#each presetBios as preset}
-                          <button
-                            class="preset-btn"
-                            class:selected={selectedBio === preset}
-                            onclick={() => selectPreset(preset)}
-                          >
-                            {preset}
-                          </button>
-                        {/each}
-                      </div>
-                    </div>
-                    <div class="bio-actions">
-                      <button class="bio-save-btn" onclick={saveBio} disabled={saving}>
-                        {saving ? "Saving..." : "Save"}
-                      </button>
-                      <button class="bio-cancel-btn" onclick={cancelBio}>Cancel</button>
-                    </div>
-                  </div>
-                {:else}
-                  <button class="profile-bio" onclick={startEditBio}>
-                    {profile?.bio || "No bio set yet"}
-                    <span class="edit-icon">✎</span>
-                  </button>
-                {/if}
+          <div class="profile-left">
+            <div class="profile-identity">
+              <span
+                class="profile-avatar"
+                role="button"
+                tabindex="0"
+                title="Click to change profile picture"
+                onclick={changeAvatar}
+                onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
+              >
+                {profile?.avatar_url
+                  ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
+                  : getInitials(profile?.name || session?.name || "User")}
+                <span class="change-avatar-hint">Change</span>
+              </span>
+              <div class="profile-meta">
+                <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
+                <div class="profile-badges">
+                  {#each (profile?.badges || sampleBadges) as badge}
+                    <span class="profile-badge" style="background: {badge.color}20; color: {badge.color}; border-color: {badge.color}40;">
+                      {badge.icon} {badge.name}
+                    </span>
+                  {/each}
+                </div>
               </div>
-              <div class="level-section">
-                <span class="level-badge">Level {profile?.level ?? 1}</span>
+            </div>
+
+            <div class="quick-stats">
+              <div class="quick-stat">
+                <span class="quick-stat-value">{profile?.worlds_completed ?? 0}</span>
+                <span class="quick-stat-label">Worlds</span>
+              </div>
+              <div class="quick-stat">
+                <span class="quick-stat-value">{profile?.quests_completed ?? 0}</span>
+                <span class="quick-stat-label">Quests</span>
+              </div>
+              <div class="quick-stat">
+                <span class="quick-stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
+                <span class="quick-stat-label">Points</span>
+              </div>
+            </div>
+
+            <div class="badges-row">
+              {#each sampleBadges as badge}
+                <div class="badge-item" style="background: {badge.color}15; border-color: {badge.color}30;">
+                  <span class="badge-icon">{badge.icon}</span>
+                </div>
+              {/each}
+            </div>
+
+            <div class="profile-bottom-bar">
+              <div class="level-circle">
+                <span class="level-number">{profile?.level ?? 1}</span>
+              </div>
+              <div class="xp-section">
                 <div class="xp-bar-track">
-                  <div class="xp-bar-fill" style="width: {((profile?.xp ?? 0) / (profile?.xp_next ?? 100)) * 100}%"></div>
+                  <div class="xp-bar-fill" style="width: {xpProgress}%"></div>
                 </div>
                 <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
+              </div>
+              <div class="bottom-actions">
+                <button class="bottom-btn">💬</button>
+                <button class="bottom-btn">ℹ️</button>
               </div>
             </div>
           </div>
 
-          <div class="profile-actions">
-            <button class="action-btn action-options">Options</button>
-            <button class="action-btn action-logout" onclick={handleLogout}>Log out</button>
-          </div>
-        </div>
+          <div class="profile-right">
+            <div class="rankings">
+              <div class="ranking-item">
+                <span class="ranking-label">Global Ranking</span>
+                <span class="ranking-value">#{profile?.rank ?? 9999}</span>
+              </div>
+            </div>
 
-        <div class="stats-grid">
-          <div class="stat-card">
-            <h3 class="stat-title">Worlds</h3>
-            <div class="stat-rows">
+            <div class="detailed-stats">
               <div class="stat-row">
-                <span class="stat-label">Created</span>
-                <span class="stat-value">{profile?.worlds_created ?? 0}</span>
+                <span class="stat-label">Ranked Score</span>
+                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
               </div>
               <div class="stat-row">
-                <span class="stat-label">Completed</span>
+                <span class="stat-label">Hit Accuracy</span>
+                <span class="stat-value">98.66%</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Play Count</span>
+                <span class="stat-value">{profile?.quests_completed ?? 0}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Total Score</span>
+                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Total Hits</span>
+                <span class="stat-value">{(profile?.quests_completed ?? 0) * 12}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Hits per Play</span>
+                <span class="stat-value">{(profile?.quests_completed ?? 0) > 0 ? Math.round((profile?.quests_completed ?? 0) * 12 / (profile?.quests_completed ?? 1)) : 0}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Maximum Combo</span>
+                <span class="stat-value">{Math.max(10, (profile?.quests_completed ?? 0) * 3)}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Replays Watched</span>
                 <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="stat-card">
-            <h3 class="stat-title">Courses</h3>
-            <div class="stat-rows">
-              <div class="stat-row">
-                <span class="stat-label">Enrolled</span>
-                <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
+        <div class="profile-tabs">
+          {#each tabs as tab}
+            <button
+              class="profile-tab"
+              class:active={activeTab === tab.id}
+              onclick={() => activeTab = tab.id}
+            >
+              {tab.label}
+            </button>
+          {/each}
+        </div>
+
+        <div class="tab-content">
+          {#if activeTab === "overview"}
+            <div class="tab-panel">
+              <p class="muted">Welcome to {profile?.name || session?.name || "User"}'s profile!</p>
+            </div>
+          {:else if activeTab === "worlds"}
+            <div class="tab-panel">
+              <div class="stat-card">
+                <h3 class="stat-title">Worlds Created</h3>
+                <p class="stat-value">{profile?.worlds_created ?? 0}</p>
               </div>
-              <div class="stat-row">
-                <span class="stat-label">Completed</span>
-                <span class="stat-value">{profile?.courses_completed ?? 0}</span>
+              <div class="stat-card">
+                <h3 class="stat-title">Worlds Completed</h3>
+                <p class="stat-value">{profile?.worlds_completed ?? 0}</p>
               </div>
             </div>
-          </div>
-
-          <div class="stat-card">
-            <h3 class="stat-title">Leaderboard</h3>
-            <div class="stat-rows">
-              <div class="stat-row">
-                <span class="stat-label">Rank</span>
-                <span class="stat-value">#{profile?.rank ?? 9999}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Points</span>
-                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Quests</span>
-                <span class="stat-value">{profile?.quests_completed ?? 0}</span>
+          {:else if activeTab === "quests"}
+            <div class="tab-panel">
+              <div class="stat-card">
+                <h3 class="stat-title">Quests Completed</h3>
+                <p class="stat-value">{profile?.quests_completed ?? 0}</p>
               </div>
             </div>
-          </div>
+          {:else if activeTab === "courses"}
+            <div class="tab-panel">
+              <div class="stat-card">
+                <h3 class="stat-title">Courses Enrolled</h3>
+                <p class="stat-value">{profile?.courses_enrolled ?? 0}</p>
+              </div>
+              <div class="stat-card">
+                <h3 class="stat-title">Courses Completed</h3>
+                <p class="stat-value">{profile?.courses_completed ?? 0}</p>
+              </div>
+            </div>
+          {:else if activeTab === "leaderboard"}
+            <div class="tab-panel">
+              <div class="stat-card">
+                <h3 class="stat-title">Global Rank</h3>
+                <p class="stat-value">#{profile?.rank ?? 9999}</p>
+              </div>
+              <div class="stat-card">
+                <h3 class="stat-title">Total Points</h3>
+                <p class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -401,7 +512,7 @@
   .profile-banner {
     position: relative;
     width: 100%;
-    height: 220px;
+    height: 240px;
     overflow: hidden;
     cursor: pointer;
   }
@@ -418,6 +529,40 @@
     );
   }
 
+  .banner-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    z-index: 1;
+  }
+
+  .banner-username {
+    font-size: 36px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    letter-spacing: 2px;
+  }
+
+  .banner-socials {
+    display: flex;
+    gap: 16px;
+  }
+
+  .banner-social {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+  }
+
   .change-banner-hint {
     position: absolute;
     bottom: 12px;
@@ -430,6 +575,7 @@
     font-weight: 700;
     opacity: 0;
     transition: opacity 150ms;
+    z-index: 2;
   }
 
   .profile-banner:hover .change-banner-hint {
@@ -446,16 +592,26 @@
   .profile-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-top: -50px;
-    gap: 20px;
+    gap: 24px;
+    margin-top: 24px;
     flex-wrap: wrap;
   }
 
-  .profile-info {
+  .profile-left {
+    flex: 1;
+    min-width: 300px;
+  }
+
+  .profile-right {
+    width: 280px;
+    flex-shrink: 0;
+  }
+
+  .profile-identity {
     display: flex;
-    align-items: flex-end;
-    gap: 20px;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 20px;
   }
 
   .profile-avatar {
@@ -463,15 +619,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 110px;
-    height: 110px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent-hot));
     color: #fff;
-    font-size: 40px;
+    font-size: 36px;
     font-weight: 900;
     flex-shrink: 0;
-    border: 4px solid var(--bg);
+    border: 3px solid var(--bg);
     box-shadow: 0 0 0 1px var(--line);
     cursor: pointer;
     overflow: hidden;
@@ -503,65 +659,55 @@
     opacity: 1;
   }
 
-  .profile-name-section {
-    padding-bottom: 4px;
+  .profile-meta {
+    flex: 1;
   }
 
   .profile-username {
-    margin: 0 0 6px;
-    font-size: 30px;
+    margin: 0 0 8px;
+    font-size: 26px;
     font-weight: 900;
     line-height: 1.2;
   }
 
-  .profile-bio-area {
-    margin-bottom: 12px;
-  }
-
-  .profile-bio {
-    margin: 0;
-    font-size: 15px;
-    color: var(--muted);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
+  .profile-badges {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: background 150ms;
-    background: transparent;
-    border: 0;
-    font-family: inherit;
+    margin-bottom: 6px;
   }
 
-  .profile-bio:hover {
-    background: var(--card-soft);
+  .profile-badge {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid;
   }
 
-  .edit-icon {
-    font-size: 13px;
-    opacity: 0;
-    transition: opacity 150ms;
+  .quick-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 94%, black);
   }
 
-  .profile-bio:hover .edit-icon {
-    opacity: 1;
-  }
-
-  .bio-edit {
+  .quick-stat {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 4px;
   }
 
-  .preset-bios {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .quick-stat-value {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--ink);
   }
 
-  .preset-label {
-    margin: 0;
+  .quick-stat-label {
     font-size: 12px;
     font-weight: 700;
     color: var(--muted);
@@ -569,95 +715,75 @@
     letter-spacing: 0.5px;
   }
 
-  .preset-grid {
+  .badges-row {
     display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
+  }
+
+  .badge-item {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 150ms;
+  }
+
+  .badge-item:hover {
+    transform: scale(1.1);
+  }
+
+  .profile-bottom-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 94%, black);
+  }
+
+  .level-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+
+  .level-number {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .xp-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     gap: 6px;
   }
 
-  .preset-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--card);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 150ms, color 150ms;
-    text-align: left;
-    font-family: inherit;
-  }
-
-  .preset-btn:hover,
-  .preset-btn.selected {
-    border-color: var(--accent);
-    color: var(--ink);
-  }
-
-  .bio-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .bio-save-btn,
-  .bio-cancel-btn {
-    padding: 6px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    border: 0;
-    font-family: inherit;
-  }
-
-  .bio-save-btn {
-    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
-    color: #fff;
-  }
-
-  .bio-save-btn:disabled {
-    opacity: 0.6;
-    cursor: wait;
-  }
-
-  .bio-cancel-btn {
-    background: var(--card-soft);
-    color: var(--muted);
-    border: 1px solid var(--line);
-  }
-
-  .level-section {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .level-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 3px 10px;
-    border-radius: 8px;
-    background: var(--accent-soft);
-    color: var(--accent-hot);
-    font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
-  }
-
   .xp-bar-track {
-    flex: 1;
-    max-width: 180px;
-    height: 8px;
-    border-radius: 4px;
+    height: 10px;
+    border-radius: 5px;
     background: var(--card-soft);
     overflow: hidden;
   }
 
   .xp-bar-fill {
     height: 100%;
-    border-radius: 4px;
+    border-radius: 5px;
     background: linear-gradient(90deg, var(--accent), var(--accent-hot));
     transition: width 300ms ease;
   }
@@ -666,52 +792,127 @@
     font-size: 12px;
     font-weight: 700;
     color: var(--muted);
-    white-space: nowrap;
   }
 
-  .profile-actions {
+  .bottom-actions {
     display: flex;
     gap: 8px;
-    flex-shrink: 0;
-    margin-top: 56px;
   }
 
-  .action-btn {
-    padding: 10px 20px;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 800;
+  .bottom-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 16px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 150ms, color 150ms;
+  }
+
+  .bottom-btn:hover {
+    border-color: #44505e;
+    color: var(--ink);
+  }
+
+  .rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .ranking-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .ranking-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .ranking-value {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--ink);
+  }
+
+  .detailed-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 94%, black);
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .stat-value {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+
+  .profile-tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: 24px;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+
+  .profile-tab {
+    padding: 10px 20px;
     border: 0;
-    transition: background 150ms, opacity 150ms;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 150ms, border-color 150ms;
+    white-space: nowrap;
     font-family: inherit;
   }
 
-  .action-options {
-    background: var(--card-soft);
+  .profile-tab:hover {
     color: var(--ink);
-    border: 1px solid var(--line);
   }
 
-  .action-options:hover {
-    border-color: #44505e;
+  .profile-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
   }
 
-  .action-logout {
-    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
-    color: #fff;
-    box-shadow: 0 8px 20px rgba(255, 59, 18, 0.2);
+  .tab-content {
+    margin-top: 20px;
   }
 
-  .action-logout:hover {
-    opacity: 0.9;
-  }
-
-  .stats-grid {
+  .tab-panel {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
-    margin-top: 32px;
   }
 
   .stat-card {
@@ -722,36 +923,12 @@
   }
 
   .stat-title {
-    margin: 0 0 14px;
-    font-size: 14px;
+    margin: 0 0 10px;
+    font-size: 13px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--muted);
-  }
-
-  .stat-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .stat-label {
-    font-size: 14px;
-    color: var(--muted);
-    font-weight: 600;
-  }
-
-  .stat-value {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--ink);
   }
 
   .alert {
@@ -775,43 +952,56 @@
 
   @media (max-width: 768px) {
     .profile-banner {
-      height: 160px;
+      height: 180px;
+    }
+
+    .banner-content {
+      padding: 0 16px;
+    }
+
+    .banner-username {
+      font-size: 24px;
     }
 
     .profile-header {
       flex-direction: column;
-      align-items: stretch;
-      margin-top: -40px;
     }
 
-    .profile-info {
+    .profile-right {
+      width: 100%;
+    }
+
+    .profile-identity {
       flex-direction: column;
       align-items: center;
       text-align: center;
     }
 
-    .profile-avatar {
-      width: 90px;
-      height: 90px;
-      font-size: 32px;
-    }
-
-    .profile-username {
-      font-size: 24px;
-    }
-
-    .level-section {
+    .profile-badges {
       justify-content: center;
+    }
+
+    .quick-stats {
+      justify-content: center;
+    }
+
+    .badges-row {
+      justify-content: center;
+    }
+
+    .rankings {
+      flex-direction: row;
+      justify-content: center;
+      gap: 32px;
+    }
+
+    .ranking-item {
+      align-items: center;
+    }
+
+    .profile-bottom-bar {
       flex-wrap: wrap;
-    }
-
-    .profile-actions {
-      margin-top: 12px;
       justify-content: center;
-    }
-
-    .stats-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>
