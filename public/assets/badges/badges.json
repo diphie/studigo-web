@@ -1,40 +1,5 @@
 [
   {
-    "id": "early-adopter",
-    "name": "Early Adopter",
-    "description": "Joined during the early days of Studigo and helped shape the platform.",
-    "icon": "🌟",
-    "color": "#ffd700"
-  },
-  {
-    "id": "quest-master",
-    "name": "Quest Master",
-    "description": "Completed over 50 quests and proved your dedication to learning.",
-    "icon": "⚔️",
-    "color": "#ff3b12"
-  },
-  {
-    "id": "top-contributor",
-    "name": "Top Contributor",
-    "description": "Made significant contributions to the Studigo community.",
-    "icon": "🏆",
-    "color": "#00bfff"
-  },
-  {
-    "id": "speed-runner",
-    "name": "Speed Runner",
-    "description": "Completed a world in record time. Fast and efficient!",
-    "icon": "⚡",
-    "color": "#9b59b6"
-  },
-  {
-    "id": "team-player",
-    "name": "Team Player",
-    "description": "Collaborated with others and helped fellow learners succeed.",
-    "icon": "🤝",
-    "color": "#2ecc71"
-  },
-  {
     "id": "test-badge",
     "name": "Test Badge",
     "description": "A test badge using a custom image.",

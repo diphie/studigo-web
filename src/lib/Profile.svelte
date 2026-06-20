@@ -41,6 +41,9 @@
     { id: "leaderboard", label: "Leaderboard" },
   ];
 
+  const MAX_BANNER_SIZE = 2 * 1024 * 1024; // 2MB
+  const MAX_AVATAR_SIZE = 500 * 1024; // 500KB
+
   async function loadBadges() {
     try {
       const res = await fetch(`${basePath}assets/badges/badges.json`);
@@ -236,51 +239,71 @@
     }
   }
 
-  function startEditBio() {
-    selectedBio = profile?.bio || "";
-    editingBio = true;
-    showPresetPicker = true;
-  }
+  async function uploadToSupabase(file, bucket, path) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !session?.access_token) return null;
 
-  function selectPreset(text) {
-    selectedBio = text;
-    saveBio();
-  }
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("file_name", path);
 
-  async function saveBio() {
-    if (!profile) return;
-    profile.bio = selectedBio;
-    await saveProfile(profile);
-    editingBio = false;
-    showPresetPicker = false;
-  }
+    const res = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apiKey: SUPABASE_ANON_KEY,
+        },
+        body: file,
+      }
+    );
 
-  function cancelBio() {
-    editingBio = false;
-    showPresetPicker = false;
-    selectedBio = "";
+    if (res.ok) {
+      return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+    }
+    return null;
   }
 
   async function changeBanner() {
-    const colors = [
-      "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
-      "linear-gradient(135deg, #2d132c, #801336, #c72c41)",
-      "linear-gradient(135deg, #0a3d2e, #1b5e3a, #2d8a4e)",
-      "linear-gradient(135deg, #3d1a1a, #5c2a2a, #8b3a3a)",
-      "linear-gradient(135deg, #1a2a3d, #2a4a6d, #3a6a9d)",
-    ];
-    const randomBanner = colors[Math.floor(Math.random() * colors.length)];
-    if (profile) {
-      profile.banner_url = randomBanner;
-      await saveProfile(profile);
-    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > MAX_BANNER_SIZE) {
+        alert("Banner image must be under 2MB.");
+        return;
+      }
+      const path = `banners/${session.userId}-${Date.now()}.png`;
+      const url = await uploadToSupabase(file, "profiles", path);
+      if (url && profile) {
+        profile.banner_url = url;
+        await saveProfile(profile);
+      }
+    };
+    input.click();
   }
 
   async function changeAvatar() {
-    if (profile) {
-      profile.avatar_url = null;
-      await saveProfile(profile);
-    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > MAX_AVATAR_SIZE) {
+        alert("Profile picture must be under 500KB.");
+        return;
+      }
+      const path = `avatars/${session.userId}-${Date.now()}.png`;
+      const url = await uploadToSupabase(file, "profiles", path);
+      if (url && profile) {
+        profile.avatar_url = url;
+        await saveProfile(profile);
+      }
+    };
+    input.click();
   }
 
   function handleLogout() {
@@ -318,7 +341,7 @@
         title="Click to change banner"
         onclick={changeBanner}
         onkeydown={(e) => { if (e.key === "Enter") changeBanner(); }}
-        style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
+        style="background: {profile?.banner_url ? `url(${profile.banner_url}) center/cover no-repeat` : 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
       >
         <div class="banner-overlay"></div>
         <span class="change-banner-hint">Change banner</span>
@@ -356,8 +379,8 @@
                     >
                       {#if badgeInfo.image}
                         <img src="{basePath}assets/badges/{badgeInfo.image}" alt="{badgeInfo.name}" class="badge-img" />
-                      {:else}
-                        <span class="badge-icon">{badgeInfo.icon}</span>
+                      {:else if badgeInfo.icon}
+                        <i class="bi bi-{badgeInfo.icon} badge-icon"></i>
                       {/if}
                       {#if hoveredBadge === badgeInfo.id}
                         <span class="badge-tooltip">
@@ -379,41 +402,6 @@
                 <span class="ranking-value">#{profile?.rank ?? 9999}</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div class="profile-stats-section">
-          <div class="stat-item">
-            <span class="stat-label">Level</span>
-            <span class="stat-value">{profile?.level ?? 1}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">XP</span>
-            <span class="stat-value">{profile?.xp ?? 0} / {profile?.xp_next ?? 100}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Worlds Created</span>
-            <span class="stat-value">{profile?.worlds_created ?? 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Worlds Completed</span>
-            <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Courses Enrolled</span>
-            <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Courses Completed</span>
-            <span class="stat-value">{profile?.courses_completed ?? 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Quests Completed</span>
-            <span class="stat-value">{profile?.quests_completed ?? 0}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Points</span>
-            <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -514,9 +502,14 @@
   .profile-banner {
     position: relative;
     width: 100%;
+    max-width: 1100px;
     height: 220px;
+    margin: 0 auto;
     overflow: hidden;
     cursor: pointer;
+    background-size: cover;
+    background-position: center;
+    border-radius: 0 0 16px 16px;
   }
 
   .banner-overlay {
@@ -579,6 +572,8 @@
     justify-content: center;
     width: 100px;
     height: 100px;
+    max-width: 100px;
+    max-height: 100px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent-hot));
     color: #fff;
@@ -589,6 +584,12 @@
     box-shadow: 0 0 0 1px var(--line);
     cursor: pointer;
     overflow: hidden;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .change-avatar-hint {
@@ -649,11 +650,12 @@
 
   .badge-icon {
     line-height: 1;
+    font-size: 20px;
   }
 
   .badge-img {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
   }
 
@@ -713,37 +715,6 @@
 
   .ranking-value {
     font-size: 28px;
-    font-weight: 900;
-    color: var(--ink);
-  }
-
-  .profile-stats-section {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-top: 24px;
-  }
-
-  .stat-item {
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--card) 94%, black);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .stat-item .stat-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .stat-item .stat-value {
-    font-size: 18px;
     font-weight: 900;
     color: var(--ink);
   }
@@ -932,10 +903,6 @@
       align-items: center;
     }
 
-    .profile-stats-section {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
     .profile-bottom-bar {
       flex-wrap: wrap;
       justify-content: center;
@@ -943,8 +910,6 @@
   }
 
   @media (max-width: 480px) {
-    .profile-stats-section {
-      grid-template-columns: 1fr;
-    }
   }
+}
 </style>
