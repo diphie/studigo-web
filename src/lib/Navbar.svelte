@@ -1,4 +1,6 @@
 <script>
+  import { getSession, isReady, goToLogin, goToSignup, logout } from "../auth.svelte.js";
+
   let mobileOpen = $state(false);
   let searchQuery = $state("");
 
@@ -15,7 +17,10 @@
 
   function handleSearch(e) {
     e.preventDefault();
-    // search logic
+  }
+
+  function handleLogout() {
+    logout();
   }
 </script>
 
@@ -46,8 +51,15 @@
     </form>
 
     <div class="nav-actions">
-      <a href="/login" class="nav-btn nav-btn-ghost">Log in</a>
-      <a href="/signup" class="nav-btn nav-btn-primary">Sign up</a>
+      {#if isReady() && getSession()}
+        <div class="nav-user">
+          <span class="nav-user-name">{getSession().name || "User"}</span>
+          <button class="nav-btn nav-btn-ghost" onclick={handleLogout}>Log out</button>
+        </div>
+      {:else}
+        <button class="nav-btn nav-btn-ghost" onclick={goToLogin}>Log in</button>
+        <button class="nav-btn nav-btn-primary" onclick={goToSignup}>Sign up</button>
+      {/if}
     </div>
 
     <button class="hamburger" onclick={toggleMobile} aria-label="Toggle menu">
@@ -71,8 +83,13 @@
         />
       </form>
       <div class="mobile-actions">
-        <a href="/login" class="nav-btn nav-btn-ghost">Log in</a>
-        <a href="/signup" class="nav-btn nav-btn-primary">Sign up</a>
+        {#if isReady() && getSession()}
+          <span class="mobile-user-name">{getSession().name || "User"}</span>
+          <button class="nav-btn nav-btn-ghost" onclick={handleLogout}>Log out</button>
+        {:else}
+          <button class="nav-btn nav-btn-ghost" onclick={goToLogin}>Log in</button>
+          <button class="nav-btn nav-btn-primary" onclick={goToSignup}>Sign up</button>
+        {/if}
       </div>
     </div>
   {/if}
@@ -186,6 +203,22 @@
     flex-shrink: 0;
   }
 
+  .nav-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-user-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .nav-btn {
     display: inline-flex;
     align-items: center;
@@ -197,6 +230,7 @@
     font-weight: 800;
     transition: background 150ms, border-color 150ms, opacity 150ms;
     white-space: nowrap;
+    cursor: pointer;
   }
 
   .nav-btn-ghost {
@@ -266,10 +300,18 @@
     display: flex;
     gap: 10px;
     margin-top: 8px;
+    align-items: center;
   }
 
   .mobile-actions .nav-btn {
     flex: 1;
+  }
+
+  .mobile-user-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    padding: 8px 0;
   }
 
   @media (max-width: 768px) {
