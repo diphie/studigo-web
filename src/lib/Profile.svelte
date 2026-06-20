@@ -106,6 +106,7 @@
         if (data.length > 0) {
           profile = data[0];
         } else {
+          const totalUsers = allRes.ok ? (await allRes.json()).length : 1;
           profile = {
             id: session.userId,
             name: session.name || "User",
@@ -118,7 +119,7 @@
             courses_enrolled: 0,
             courses_completed: 0,
             quests_completed: 0,
-            rank: 9999,
+            rank: totalUsers + 1,
             total_points: 0,
             banner_url: null,
             avatar_url: null,
@@ -242,9 +243,11 @@
   async function uploadToSupabase(file, bucket, path) {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !session?.access_token) return null;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("file_name", path);
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Only PNG, JPEG, and WEBP images are allowed.");
+      return null;
+    }
 
     const res = await fetch(
       `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
@@ -267,7 +270,7 @@
   async function changeBanner() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = "image/png,image/jpeg,image/webp";
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -288,7 +291,7 @@
   async function changeAvatar() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = "image/png,image/jpeg,image/webp";
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -911,5 +914,4 @@
 
   @media (max-width: 480px) {
   }
-}
 </style>
