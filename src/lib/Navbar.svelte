@@ -1,36 +1,37 @@
 <script>
-  import { getSession, isReady, goToLogin, goToSignup, logout } from "../auth.svelte.js";
+  import { getSession, isReady, goToLogin, goToSignup } from "../auth.svelte.js";
 
   let mobileOpen = $state(false);
-  let searchQuery = $state("");
 
   const basePath = import.meta.env.BASE_URL;
 
   const navLinks = [
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "Courses", href: "/courses" },
-    { label: "Worlds", href: "/worlds" },
-    { label: "Quests", href: "/quests" },
-    { label: "Social", href: "/social" },
-    { label: "Rankings", href: "/rankings" },
+    { label: "Dashboard", href: `${basePath}dashboard` },
+    { label: "Courses", href: `${basePath}courses` },
+    { label: "Worlds", href: `${basePath}worlds` },
+    { label: "Quests", href: `${basePath}quests` },
+    { label: "Social", href: `${basePath}social` },
+    { label: "Rankings", href: `${basePath}rankings` },
   ];
 
   function toggleMobile() {
     mobileOpen = !mobileOpen;
   }
 
-  function handleSearch(e) {
-    e.preventDefault();
-  }
-
-  function handleLogout() {
-    logout();
+  function getInitials(name) {
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   }
 </script>
 
 <nav class="navbar">
   <div class="nav-inner">
-    <a href="/" class="nav-brand">
+    <a href={basePath} class="nav-brand">
       <img class="nav-logo" src="{basePath}studigo-logo.png" alt="Studigo" />
       <span class="nav-name">Studigo</span>
     </a>
@@ -41,25 +42,12 @@
       {/each}
     </div>
 
-    <form class="nav-search" onsubmit={handleSearch} role="search">
-      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-      </svg>
-      <input
-        type="search"
-        placeholder="Search projects..."
-        bind:value={searchQuery}
-        class="search-input"
-      />
-    </form>
-
     <div class="nav-actions">
       {#if isReady() && getSession()}
-        <div class="nav-user">
-          <span class="nav-user-name">{getSession().name || "User"}</span>
-          <button class="nav-btn nav-btn-ghost" onclick={handleLogout}>Log out</button>
-        </div>
+        <a href="{basePath}profile" class="nav-profile">
+          <span class="nav-avatar">{getInitials(getSession().name)}</span>
+          <span class="nav-username">{getSession().name || "User"}</span>
+        </a>
       {:else}
         <button class="nav-btn nav-btn-ghost" onclick={goToLogin}>Log in</button>
         <button class="nav-btn nav-btn-primary" onclick={goToSignup}>Sign up</button>
@@ -78,18 +66,12 @@
       {#each navLinks as link}
         <a href={link.href} class="mobile-link">{link.label}</a>
       {/each}
-      <form class="mobile-search" onsubmit={handleSearch} role="search">
-        <input
-          type="search"
-          placeholder="Search projects..."
-          bind:value={searchQuery}
-          class="search-input"
-        />
-      </form>
       <div class="mobile-actions">
         {#if isReady() && getSession()}
-          <span class="mobile-user-name">{getSession().name || "User"}</span>
-          <button class="nav-btn nav-btn-ghost" onclick={handleLogout}>Log out</button>
+          <a href="{basePath}profile" class="mobile-profile">
+            <span class="nav-avatar">{getInitials(getSession().name)}</span>
+            <span class="nav-username">{getSession().name || "User"}</span>
+          </a>
         {:else}
           <button class="nav-btn nav-btn-ghost" onclick={goToLogin}>Log in</button>
           <button class="nav-btn nav-btn-primary" onclick={goToSignup}>Sign up</button>
@@ -145,7 +127,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
+    flex: 1;
   }
 
   .nav-link {
@@ -155,49 +137,12 @@
     font-weight: 700;
     color: var(--muted);
     transition: color 150ms, background 150ms;
+    white-space: nowrap;
   }
 
   .nav-link:hover {
     color: var(--ink);
     background: var(--card-soft);
-  }
-
-  .nav-search {
-    position: relative;
-    flex: 1;
-    max-width: 320px;
-    margin-left: auto;
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 13px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    pointer-events: none;
-  }
-
-  .search-input {
-    width: 100%;
-    height: 40px;
-    padding: 0 13px 0 38px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: #0f141b;
-    color: var(--ink);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 150ms, box-shadow 150ms;
-  }
-
-  .search-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-
-  .search-input::placeholder {
-    color: var(--muted);
   }
 
   .nav-actions {
@@ -207,17 +152,39 @@
     flex-shrink: 0;
   }
 
-  .nav-user {
+  .nav-profile {
     display: flex;
     align-items: center;
     gap: 10px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    transition: background 150ms;
+    cursor: pointer;
   }
 
-  .nav-user-name {
+  .nav-profile:hover {
+    background: var(--card-soft);
+  }
+
+  .nav-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .nav-username {
     font-size: 14px;
     font-weight: 700;
     color: var(--ink);
-    max-width: 140px;
+    max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -235,6 +202,7 @@
     transition: background 150ms, border-color 150ms, opacity 150ms;
     white-space: nowrap;
     cursor: pointer;
+    border: 0;
   }
 
   .nav-btn-ghost {
@@ -248,7 +216,6 @@
   }
 
   .nav-btn-primary {
-    border: 0;
     background: linear-gradient(135deg, var(--accent), var(--accent-hot));
     color: #fff;
     box-shadow: 0 8px 20px rgba(255, 59, 18, 0.2);
@@ -296,31 +263,19 @@
     border-bottom: 0;
   }
 
-  .mobile-search {
-    margin: 12px 0;
-  }
-
   .mobile-actions {
+    margin-top: 12px;
+  }
+
+  .mobile-profile {
     display: flex;
-    gap: 10px;
-    margin-top: 8px;
     align-items: center;
-  }
-
-  .mobile-actions .nav-btn {
-    flex: 1;
-  }
-
-  .mobile-user-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--ink);
+    gap: 10px;
     padding: 8px 0;
   }
 
   @media (max-width: 768px) {
     .nav-links,
-    .nav-search,
     .nav-actions {
       display: none;
     }
@@ -332,6 +287,10 @@
 
     .mobile-menu {
       display: block;
+    }
+
+    .mobile-actions .nav-btn {
+      width: 100%;
     }
   }
 </style>
