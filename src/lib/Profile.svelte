@@ -249,17 +249,21 @@
       return null;
     }
 
-    const res = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apiKey: SUPABASE_ANON_KEY,
-        },
-        body: file,
-      }
-    );
+    const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+    console.log("[Upload] POST", url);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apiKey: SUPABASE_ANON_KEY,
+      },
+      body: file,
+    });
+
+    console.log("[Upload] Status:", res.status, res.statusText);
+    const text = await res.text();
+    console.log("[Upload] Response:", text);
 
     if (res.ok) {
       return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
@@ -274,11 +278,22 @@
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      if (!session?.userId) {
+        alert("You must be logged in to upload a banner.");
+        return;
+      }
       if (file.size > MAX_BANNER_SIZE) {
         alert("Banner image must be under 2MB.");
         return;
       }
-      const path = `${session.userId}/banners/${Date.now()}.png`;
+      console.log("[Banner] session:", session);
+      const userId = session?.userId;
+      if (!userId) {
+        alert("User ID not found. Please log in again.");
+        return;
+      }
+      const path = `${userId}/banners/${Date.now()}.png`;
+      console.log("[Banner] Uploading to path:", path);
       const url = await uploadToSupabase(file, "profiles", path);
       if (url && profile) {
         profile.banner_url = url;
@@ -295,11 +310,22 @@
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      if (!session?.userId) {
+        alert("You must be logged in to upload a profile picture.");
+        return;
+      }
       if (file.size > MAX_AVATAR_SIZE) {
         alert("Profile picture must be under 500KB.");
         return;
       }
-      const path = `${session.userId}/avatars/${Date.now()}.png`;
+      console.log("[Avatar] session:", session);
+      const userId = session?.userId;
+      if (!userId) {
+        alert("User ID not found. Please log in again.");
+        return;
+      }
+      const path = `${userId}/avatars/${Date.now()}.png`;
+      console.log("[Avatar] Uploading to path:", path);
       const url = await uploadToSupabase(file, "profiles", path);
       if (url && profile) {
         profile.avatar_url = url;
