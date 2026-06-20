@@ -57,11 +57,6 @@
     showPresetPicker = false;
   }
 
-  function saveBio() {
-    editingBio = false;
-    showPresetPicker = false;
-  }
-
   function handleLogout() {
     logout();
   }
@@ -74,49 +69,40 @@
 {#if session}
   <div class="profile-page">
     <!-- Banner -->
-    <div class="profile-banner">
+    <div class="profile-banner" role="button" tabindex="0" title="Click to change banner">
       <div class="banner-overlay"></div>
+      <span class="change-banner-hint">Change banner</span>
     </div>
 
     <div class="profile-content">
       <!-- Profile header row -->
       <div class="profile-header">
         <div class="profile-info">
-          <span class="profile-avatar">{getInitials(session.name)}</span>
+          <span class="profile-avatar" role="button" tabindex="0" title="Click to change profile picture">
+            {getInitials(session.name)}
+            <span class="change-avatar-hint">Change</span>
+          </span>
           <div class="profile-name-section">
             <h1 class="profile-username">{session.name || "User"}</h1>
             <div class="profile-bio-area">
               {#if editingBio}
                 <div class="bio-edit">
-                  <input
-                    type="text"
-                    bind:value={bio}
-                    class="bio-input"
-                    placeholder="Write something about yourself..."
-                    onkeydown={(e) => { if (e.key === "Enter") saveBio(); }}
-                  />
-                  {#if showPresetPicker}
-                    <div class="preset-bios">
-                      <p class="preset-label">Quick bios:</p>
-                      <div class="preset-grid">
-                        {#each presetBios as preset}
-                          <button class="preset-btn" onclick={() => selectPreset(preset)}>
-                            {preset}
-                          </button>
-                        {/each}
-                      </div>
+                  <div class="preset-bios">
+                    <p class="preset-label">Choose a bio:</p>
+                    <div class="preset-grid">
+                      {#each presetBios as preset}
+                        <button class="preset-btn" onclick={() => selectPreset(preset)}>
+                          {preset}
+                        </button>
+                      {/each}
                     </div>
-                  {/if}
-                  <div class="bio-actions">
-                    <button class="bio-save-btn" onclick={saveBio}>Save</button>
-                    <button class="bio-cancel-btn" onclick={() => { editingBio = false; showPresetPicker = false; }}>Cancel</button>
                   </div>
                 </div>
               {:else}
-                <p class="profile-bio" onclick={startEditBio} role="button" tabindex="0" onkeydown={(e) => { if (e.key === "Enter") startEditBio(); }}>
+                <button class="profile-bio" onclick={startEditBio}>
                   {bio}
                   <span class="edit-icon">✎</span>
-                </p>
+                </button>
               {/if}
             </div>
             <!-- Level + XP bar -->
@@ -194,14 +180,16 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    width: 100%;
   }
 
   .profile-banner {
     position: relative;
     width: 100%;
-    height: 200px;
+    height: 220px;
     background: linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot));
     overflow: hidden;
+    cursor: pointer;
   }
 
   .banner-overlay {
@@ -216,11 +204,29 @@
     );
   }
 
+  .change-banner-hint {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 150ms;
+  }
+
+  .profile-banner:hover .change-banner-hint {
+    opacity: 1;
+  }
+
   .profile-content {
-    max-width: 1000px;
+    max-width: 1100px;
     width: 100%;
     margin: 0 auto;
-    padding: 0 20px 40px;
+    padding: 0 24px 40px;
   }
 
   .profile-header {
@@ -239,19 +245,41 @@
   }
 
   .profile-avatar {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100px;
-    height: 100px;
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent-hot));
     color: #fff;
-    font-size: 36px;
+    font-size: 40px;
     font-weight: 900;
     flex-shrink: 0;
     border: 4px solid var(--bg);
     box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+  }
+
+  .change-avatar-hint {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    opacity: 0;
+    transition: opacity 150ms;
+    white-space: nowrap;
+  }
+
+  .profile-avatar:hover .change-avatar-hint {
+    opacity: 1;
   }
 
   .profile-name-section {
@@ -260,7 +288,7 @@
 
   .profile-username {
     margin: 0 0 6px;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 900;
     line-height: 1.2;
   }
@@ -302,19 +330,6 @@
     gap: 10px;
   }
 
-  .bio-input {
-    width: 100%;
-    max-width: 400px;
-    min-height: 40px;
-    padding: 8px 12px;
-    border: 1px solid var(--accent);
-    border-radius: 10px;
-    background: #0f141b;
-    color: var(--ink);
-    font-size: 14px;
-    outline: none;
-  }
-
   .preset-bios {
     display: flex;
     flex-direction: column;
@@ -354,32 +369,6 @@
     color: var(--ink);
   }
 
-  .bio-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .bio-save-btn,
-  .bio-cancel-btn {
-    padding: 6px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    border: 0;
-  }
-
-  .bio-save-btn {
-    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
-    color: #fff;
-  }
-
-  .bio-cancel-btn {
-    background: var(--card-soft);
-    color: var(--muted);
-    border: 1px solid var(--line);
-  }
-
   .level-section {
     display: flex;
     align-items: center;
@@ -401,7 +390,7 @@
 
   .xp-bar-track {
     flex: 1;
-    max-width: 160px;
+    max-width: 180px;
     height: 8px;
     border-radius: 4px;
     background: var(--card-soft);
@@ -508,7 +497,7 @@
 
   @media (max-width: 768px) {
     .profile-banner {
-      height: 140px;
+      height: 160px;
     }
 
     .profile-header {
@@ -524,9 +513,9 @@
     }
 
     .profile-avatar {
-      width: 80px;
-      height: 80px;
-      font-size: 28px;
+      width: 90px;
+      height: 90px;
+      font-size: 32px;
     }
 
     .profile-username {

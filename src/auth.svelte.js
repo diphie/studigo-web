@@ -19,7 +19,6 @@ export function isReady() {
 }
 
 function getCurrentUrl() {
-  // Use the full current URL — the auth page will parse and redirect back to it
   return window.location.href;
 }
 
@@ -41,13 +40,29 @@ export function goToSignup() {
 }
 
 export async function logout() {
+  const stored = localStorage.getItem(SESSION_KEY);
+  if (stored) {
+    try {
+      const session = JSON.parse(stored);
+      // Call Supabase REST API to revoke the session
+      if (session.access_token && SUPABASE_URL && SUPABASE_ANON_KEY) {
+        await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+          method: "POST",
+          headers: {
+            apiKey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+      }
+    } catch {
+      // Logout best-effort
+    }
+  }
+
   localStorage.removeItem(SESSION_KEY);
   sessionState = null;
-
-  // Also sign out from Supabase via the auth page
-  const logoutUrl = new URL(AUTH_URL);
-  logoutUrl.hash = "#logout";
-  window.location.href = logoutUrl.toString();
+  // Redirect to home page
+  window.location.href = window.location.origin + BASE;
 }
 
 // Initialize on module load
