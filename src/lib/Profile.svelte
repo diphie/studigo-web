@@ -11,6 +11,7 @@
   let editingBio = $state(false);
   let showPresetPicker = $state(false);
   let selectedBio = $state("");
+  let error = $state(null);
 
   const presetBios = [
     "Learning something new every day 🚀",
@@ -61,6 +62,7 @@
         if (data.length > 0) {
           profile = data[0];
         } else {
+          // No profile yet — create one with session name
           profile = {
             id: session.userId,
             name: session.name || "User",
@@ -80,8 +82,31 @@
           };
           await saveProfile(profile, true);
         }
+      } else {
+        // Table might not exist or permission denied
+        console.warn("Profile fetch failed:", res.status, await res.text());
+        error = "Could not load profile. Make sure the profiles table exists in Supabase.";
+        profile = {
+          id: session.userId,
+          name: session.name || "User",
+          bio: "",
+          level: 1,
+          xp: 0,
+          xp_next: 100,
+          worlds_created: 0,
+          worlds_completed: 0,
+          courses_enrolled: 0,
+          courses_completed: 0,
+          quests_completed: 0,
+          rank: 9999,
+          total_points: 0,
+          banner_url: null,
+          avatar_url: null,
+        };
       }
-    } catch {
+    } catch (err) {
+      console.warn("Profile fetch error:", err);
+      error = "Could not connect to profile database.";
       profile = {
         id: session.userId,
         name: session.name || "User",
@@ -148,9 +173,11 @@
         if (result.length > 0) {
           profile = result[0];
         }
+      } else {
+        console.warn("Profile save failed:", res.status, await res.text());
       }
-    } catch {
-      // Save failed silently
+    } catch (err) {
+      console.warn("Profile save error:", err);
     } finally {
       saving = false;
     }
@@ -216,132 +243,144 @@
 
 {#if session && !loading}
   <div class="profile-page">
-    <div
-      class="profile-banner"
-      role="button"
-      tabindex="0"
-      title="Click to change banner"
-      onclick={changeBanner}
-      onkeydown={(e) => { if (e.key === "Enter") changeBanner(); }}
-      style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
-    >
-      <div class="banner-overlay"></div>
-      <span class="change-banner-hint">Change banner</span>
-    </div>
+    {#if error}
+      <div class="profile-content" style="padding-top: 40px;">
+        <div class="alert warning">
+          <strong>Profile not loaded</strong>
+          <p>{error}</p>
+          <p class="muted" style="margin-top: 8px;">
+            Run the SQL in <code>supabase.sql</code> in your Supabase project to set up the profiles table.
+          </p>
+        </div>
+      </div>
+    {:else}
+      <div
+        class="profile-banner"
+        role="button"
+        tabindex="0"
+        title="Click to change banner"
+        onclick={changeBanner}
+        onkeydown={(e) => { if (e.key === "Enter") changeBanner(); }}
+        style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
+      >
+        <div class="banner-overlay"></div>
+        <span class="change-banner-hint">Change banner</span>
+      </div>
 
-    <div class="profile-content">
-      <div class="profile-header">
-        <div class="profile-info">
-          <span
-            class="profile-avatar"
-            role="button"
-            tabindex="0"
-            title="Click to change profile picture"
-            onclick={changeAvatar}
-            onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
-          >
-            {profile?.avatar_url
-              ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
-              : getInitials(profile?.name || session?.name || "User")}
-            <span class="change-avatar-hint">Change</span>
-          </span>
-          <div class="profile-name-section">
-            <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
-            <div class="profile-bio-area">
-              {#if editingBio}
-                <div class="bio-edit">
-                  <div class="preset-bios">
-                    <p class="preset-label">Choose a bio:</p>
-                    <div class="preset-grid">
-                      {#each presetBios as preset}
-                        <button
-                          class="preset-btn"
-                          class:selected={selectedBio === preset}
-                          onclick={() => selectPreset(preset)}
-                        >
-                          {preset}
-                        </button>
-                      {/each}
+      <div class="profile-content">
+        <div class="profile-header">
+          <div class="profile-info">
+            <span
+              class="profile-avatar"
+              role="button"
+              tabindex="0"
+              title="Click to change profile picture"
+              onclick={changeAvatar}
+              onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
+            >
+              {profile?.avatar_url
+                ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
+                : getInitials(profile?.name || session?.name || "User")}
+              <span class="change-avatar-hint">Change</span>
+            </span>
+            <div class="profile-name-section">
+              <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
+              <div class="profile-bio-area">
+                {#if editingBio}
+                  <div class="bio-edit">
+                    <div class="preset-bios">
+                      <p class="preset-label">Choose a bio:</p>
+                      <div class="preset-grid">
+                        {#each presetBios as preset}
+                          <button
+                            class="preset-btn"
+                            class:selected={selectedBio === preset}
+                            onclick={() => selectPreset(preset)}
+                          >
+                            {preset}
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                    <div class="bio-actions">
+                      <button class="bio-save-btn" onclick={saveBio} disabled={saving}>
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                      <button class="bio-cancel-btn" onclick={cancelBio}>Cancel</button>
                     </div>
                   </div>
-                  <div class="bio-actions">
-                    <button class="bio-save-btn" onclick={saveBio} disabled={saving}>
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button class="bio-cancel-btn" onclick={cancelBio}>Cancel</button>
-                  </div>
-                </div>
-              {:else}
-                <button class="profile-bio" onclick={startEditBio}>
-                  {profile?.bio || "No bio set yet"}
-                  <span class="edit-icon">✎</span>
-                </button>
-              {/if}
-            </div>
-            <div class="level-section">
-              <span class="level-badge">Level {profile?.level ?? 1}</span>
-              <div class="xp-bar-track">
-                <div class="xp-bar-fill" style="width: {((profile?.xp ?? 0) / (profile?.xp_next ?? 100)) * 100}%"></div>
+                {:else}
+                  <button class="profile-bio" onclick={startEditBio}>
+                    {profile?.bio || "No bio set yet"}
+                    <span class="edit-icon">✎</span>
+                  </button>
+                {/if}
               </div>
-              <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
+              <div class="level-section">
+                <span class="level-badge">Level {profile?.level ?? 1}</span>
+                <div class="xp-bar-track">
+                  <div class="xp-bar-fill" style="width: {((profile?.xp ?? 0) / (profile?.xp_next ?? 100)) * 100}%"></div>
+                </div>
+                <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
+              </div>
             </div>
+          </div>
+
+          <div class="profile-actions">
+            <button class="action-btn action-options">Options</button>
+            <button class="action-btn action-logout" onclick={handleLogout}>Log out</button>
           </div>
         </div>
 
-        <div class="profile-actions">
-          <button class="action-btn action-options">Options</button>
-          <button class="action-btn action-logout" onclick={handleLogout}>Log out</button>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3 class="stat-title">Worlds</h3>
+            <div class="stat-rows">
+              <div class="stat-row">
+                <span class="stat-label">Created</span>
+                <span class="stat-value">{profile?.worlds_created ?? 0}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Completed</span>
+                <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <h3 class="stat-title">Courses</h3>
+            <div class="stat-rows">
+              <div class="stat-row">
+                <span class="stat-label">Enrolled</span>
+                <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Completed</span>
+                <span class="stat-value">{profile?.courses_completed ?? 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <h3 class="stat-title">Leaderboard</h3>
+            <div class="stat-rows">
+              <div class="stat-row">
+                <span class="stat-label">Rank</span>
+                <span class="stat-value">#{profile?.rank ?? 9999}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Points</span>
+                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Quests</span>
+                <span class="stat-value">{profile?.quests_completed ?? 0}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <h3 class="stat-title">Worlds</h3>
-          <div class="stat-rows">
-            <div class="stat-row">
-              <span class="stat-label">Created</span>
-              <span class="stat-value">{profile?.worlds_created ?? 0}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Completed</span>
-              <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <h3 class="stat-title">Courses</h3>
-          <div class="stat-rows">
-            <div class="stat-row">
-              <span class="stat-label">Enrolled</span>
-              <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Completed</span>
-              <span class="stat-value">{profile?.courses_completed ?? 0}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <h3 class="stat-title">Leaderboard</h3>
-          <div class="stat-rows">
-            <div class="stat-row">
-              <span class="stat-label">Rank</span>
-              <span class="stat-value">#{profile?.rank ?? 9999}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Points</span>
-              <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Quests</span>
-              <span class="stat-value">{profile?.quests_completed ?? 0}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    {/if}
   </div>
 {:else if ready && !session}
   <div class="profile-page">
@@ -713,6 +752,25 @@
     font-size: 16px;
     font-weight: 800;
     color: var(--ink);
+  }
+
+  .alert {
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .alert.warning {
+    background: var(--amber-bg);
+    border: 1px solid var(--amber-line);
+    color: var(--ink);
+  }
+
+  .alert code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
   }
 
   @media (max-width: 768px) {
