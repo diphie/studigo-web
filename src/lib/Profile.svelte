@@ -278,7 +278,7 @@
         alert("Banner image must be under 2MB.");
         return;
       }
-      const path = `banners/${session.userId}-${Date.now()}.png`;
+      const path = `${session.userId}/banners/${Date.now()}.png`;
       const url = await uploadToSupabase(file, "profiles", path);
       if (url && profile) {
         profile.banner_url = url;
@@ -299,7 +299,7 @@
         alert("Profile picture must be under 500KB.");
         return;
       }
-      const path = `avatars/${session.userId}-${Date.now()}.png`;
+      const path = `${session.userId}/avatars/${Date.now()}.png`;
       const url = await uploadToSupabase(file, "profiles", path);
       if (url && profile) {
         profile.avatar_url = url;
