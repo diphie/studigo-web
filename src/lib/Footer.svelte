@@ -24,7 +24,7 @@
       links: [
         { label: "About", href: "/about" },
         { label: "Updates", href: "/updates" },
-        { label: "team", href: "/team" },
+        { label: "Staff", href: "/staff" },
         { label: "Status", href: "/status" },
       ],
     },
