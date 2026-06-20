@@ -44,7 +44,6 @@ export async function logout() {
   if (stored) {
     try {
       const session = JSON.parse(stored);
-      // Call Supabase REST API to revoke the session
       if (session.access_token && SUPABASE_URL && SUPABASE_ANON_KEY) {
         await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
           method: "POST",
@@ -61,7 +60,6 @@ export async function logout() {
 
   localStorage.removeItem(SESSION_KEY);
   sessionState = null;
-  // Redirect to home page
   window.location.href = window.location.origin + BASE;
 }
 
@@ -69,7 +67,6 @@ export async function logout() {
 initialize();
 
 async function initialize() {
-  // 1. Check URL hash for incoming auth tokens (redirect from auth)
   const hashParams = parseHash();
   if (hashParams.access_token) {
     const session = {
@@ -80,13 +77,11 @@ async function initialize() {
       auth: "success",
     };
     await fetchAndStoreUser(session);
-    // Clean URL — remove hash
     history.replaceState(null, "", window.location.pathname + window.location.search);
     readyState = true;
     return;
   }
 
-  // 2. Check localStorage for existing session
   const stored = localStorage.getItem(SESSION_KEY);
   if (stored) {
     try {
@@ -122,6 +117,7 @@ async function fetchAndStoreUser(session) {
     if (res.ok) {
       const user = await res.json();
       session.user = user;
+      session.userId = user.id;
       session.email = user.email;
       session.name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "User";
     }

@@ -1,12 +1,16 @@
 <script>
-  import { getSession, goToLogin, logout } from "../auth.svelte.js";
+  import { getSession, isReady } from "../auth.svelte.js";
 
   const basePath = import.meta.env.BASE_URL;
   const session = getSession();
+  const ready = isReady();
 
-  let bio = $state(session?.bio || "No bio set yet");
+  let profile = $state(null);
+  let loading = $state(true);
+  let saving = $state(false);
   let editingBio = $state(false);
   let showPresetPicker = $state(false);
+  let selectedBio = $state("");
 
   const presetBios = [
     "Learning something new every day 🚀",
@@ -21,20 +25,9 @@
     "Studigo enthusiast 💡",
   ];
 
-  const level = 7;
-  const xp = 2340;
-  const xpNext = 3000;
-  const xpProgress = (xp / xpNext) * 100;
-
-  const stats = {
-    worldsCreated: 3,
-    worldsCompleted: 12,
-    coursesEnrolled: 8,
-    coursesCompleted: 5,
-    questsCompleted: 47,
-    rank: 142,
-    totalPoints: 8920,
-  };
+  const config = window.STUDIGO_CONFIG || {};
+  const SUPABASE_URL = config.SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY || "";
 
   function getInitials(name) {
     if (!name) return "?";
@@ -46,44 +39,214 @@
       .slice(0, 2);
   }
 
+  async function fetchProfile() {
+    if (!session?.userId || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      loading = false;
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.userId}&select=*`,
+        {
+          headers: {
+            apiKey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0) {
+          profile = data[0];
+        } else {
+          profile = {
+            id: session.userId,
+            name: session.name || "User",
+            bio: "",
+            level: 1,
+            xp: 0,
+            xp_next: 100,
+            worlds_created: 0,
+            worlds_completed: 0,
+            courses_enrolled: 0,
+            courses_completed: 0,
+            quests_completed: 0,
+            rank: 9999,
+            total_points: 0,
+            banner_url: null,
+            avatar_url: null,
+          };
+          await saveProfile(profile, true);
+        }
+      }
+    } catch {
+      profile = {
+        id: session.userId,
+        name: session.name || "User",
+        bio: "",
+        level: 1,
+        xp: 0,
+        xp_next: 100,
+        worlds_created: 0,
+        worlds_completed: 0,
+        courses_enrolled: 0,
+        courses_completed: 0,
+        quests_completed: 0,
+        rank: 9999,
+        total_points: 0,
+        banner_url: null,
+        avatar_url: null,
+      };
+    }
+
+    loading = false;
+  }
+
+  async function saveProfile(data, isNew = false) {
+    if (!session?.userId || !SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    saving = true;
+    try {
+      const payload = {
+        id: session.userId,
+        name: data.name || session.name || "User",
+        bio: data.bio || "",
+        level: data.level ?? 1,
+        xp: data.xp ?? 0,
+        xp_next: data.xp_next ?? 100,
+        worlds_created: data.worlds_created ?? 0,
+        worlds_completed: data.worlds_completed ?? 0,
+        courses_enrolled: data.courses_enrolled ?? 0,
+        courses_completed: data.courses_completed ?? 0,
+        quests_completed: data.quests_completed ?? 0,
+        rank: data.rank ?? 9999,
+        total_points: data.total_points ?? 0,
+        banner_url: data.banner_url ?? null,
+        avatar_url: data.avatar_url ?? null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const method = isNew ? "POST" : "PATCH";
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.userId}`,
+        {
+          method,
+          headers: {
+            apiKey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.length > 0) {
+          profile = result[0];
+        }
+      }
+    } catch {
+      // Save failed silently
+    } finally {
+      saving = false;
+    }
+  }
+
   function startEditBio() {
+    selectedBio = profile?.bio || "";
     editingBio = true;
     showPresetPicker = true;
   }
 
   function selectPreset(text) {
-    bio = text;
+    selectedBio = text;
+    saveBio();
+  }
+
+  async function saveBio() {
+    if (!profile) return;
+    profile.bio = selectedBio;
+    await saveProfile(profile);
     editingBio = false;
     showPresetPicker = false;
   }
 
-  function handleLogout() {
-    logout();
+  function cancelBio() {
+    editingBio = false;
+    showPresetPicker = false;
+    selectedBio = "";
   }
 
-  if (!session) {
-    goToLogin();
+  async function changeBanner() {
+    const colors = [
+      "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
+      "linear-gradient(135deg, #2d132c, #801336, #c72c41)",
+      "linear-gradient(135deg, #0a3d2e, #1b5e3a, #2d8a4e)",
+      "linear-gradient(135deg, #3d1a1a, #5c2a2a, #8b3a3a)",
+      "linear-gradient(135deg, #1a2a3d, #2a4a6d, #3a6a9d)",
+    ];
+    const randomBanner = colors[Math.floor(Math.random() * colors.length)];
+    if (profile) {
+      profile.banner_url = randomBanner;
+      await saveProfile(profile);
+    }
   }
+
+  async function changeAvatar() {
+    if (profile) {
+      profile.avatar_url = null;
+      await saveProfile(profile);
+    }
+  }
+
+  function handleLogout() {
+    import("../auth.svelte.js").then(({ logout }) => logout());
+  }
+
+  $effect(() => {
+    if (ready && session?.userId) {
+      fetchProfile();
+    }
+  });
 </script>
 
-{#if session}
+{#if session && !loading}
   <div class="profile-page">
-    <!-- Banner -->
-    <div class="profile-banner" role="button" tabindex="0" title="Click to change banner">
+    <div
+      class="profile-banner"
+      role="button"
+      tabindex="0"
+      title="Click to change banner"
+      onclick={changeBanner}
+      onkeydown={(e) => { if (e.key === "Enter") changeBanner(); }}
+      style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
+    >
       <div class="banner-overlay"></div>
       <span class="change-banner-hint">Change banner</span>
     </div>
 
     <div class="profile-content">
-      <!-- Profile header row -->
       <div class="profile-header">
         <div class="profile-info">
-          <span class="profile-avatar" role="button" tabindex="0" title="Click to change profile picture">
-            {getInitials(session.name)}
+          <span
+            class="profile-avatar"
+            role="button"
+            tabindex="0"
+            title="Click to change profile picture"
+            onclick={changeAvatar}
+            onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
+          >
+            {profile?.avatar_url
+              ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
+              : getInitials(profile?.name || session?.name || "User")}
             <span class="change-avatar-hint">Change</span>
           </span>
           <div class="profile-name-section">
-            <h1 class="profile-username">{session.name || "User"}</h1>
+            <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
             <div class="profile-bio-area">
               {#if editingBio}
                 <div class="bio-edit">
@@ -91,50 +254,57 @@
                     <p class="preset-label">Choose a bio:</p>
                     <div class="preset-grid">
                       {#each presetBios as preset}
-                        <button class="preset-btn" onclick={() => selectPreset(preset)}>
+                        <button
+                          class="preset-btn"
+                          class:selected={selectedBio === preset}
+                          onclick={() => selectPreset(preset)}
+                        >
                           {preset}
                         </button>
                       {/each}
                     </div>
                   </div>
+                  <div class="bio-actions">
+                    <button class="bio-save-btn" onclick={saveBio} disabled={saving}>
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                    <button class="bio-cancel-btn" onclick={cancelBio}>Cancel</button>
+                  </div>
                 </div>
               {:else}
                 <button class="profile-bio" onclick={startEditBio}>
-                  {bio}
+                  {profile?.bio || "No bio set yet"}
                   <span class="edit-icon">✎</span>
                 </button>
               {/if}
             </div>
-            <!-- Level + XP bar -->
             <div class="level-section">
-              <span class="level-badge">Level {level}</span>
+              <span class="level-badge">Level {profile?.level ?? 1}</span>
               <div class="xp-bar-track">
-                <div class="xp-bar-fill" style="width: {xpProgress}%"></div>
+                <div class="xp-bar-fill" style="width: {((profile?.xp ?? 0) / (profile?.xp_next ?? 100)) * 100}%"></div>
               </div>
-              <span class="xp-text">{xp} / {xpNext} XP</span>
+              <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
             </div>
           </div>
         </div>
 
-        <!-- Right actions -->
         <div class="profile-actions">
           <button class="action-btn action-options">Options</button>
           <button class="action-btn action-logout" onclick={handleLogout}>Log out</button>
         </div>
       </div>
 
-      <!-- Stats grid -->
       <div class="stats-grid">
         <div class="stat-card">
           <h3 class="stat-title">Worlds</h3>
           <div class="stat-rows">
             <div class="stat-row">
               <span class="stat-label">Created</span>
-              <span class="stat-value">{stats.worldsCreated}</span>
+              <span class="stat-value">{profile?.worlds_created ?? 0}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Completed</span>
-              <span class="stat-value">{stats.worldsCompleted}</span>
+              <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
             </div>
           </div>
         </div>
@@ -144,11 +314,11 @@
           <div class="stat-rows">
             <div class="stat-row">
               <span class="stat-label">Enrolled</span>
-              <span class="stat-value">{stats.coursesEnrolled}</span>
+              <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Completed</span>
-              <span class="stat-value">{stats.coursesCompleted}</span>
+              <span class="stat-value">{profile?.courses_completed ?? 0}</span>
             </div>
           </div>
         </div>
@@ -158,19 +328,25 @@
           <div class="stat-rows">
             <div class="stat-row">
               <span class="stat-label">Rank</span>
-              <span class="stat-value">#{stats.rank}</span>
+              <span class="stat-value">#{profile?.rank ?? 9999}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Points</span>
-              <span class="stat-value">{stats.totalPoints.toLocaleString()}</span>
+              <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Quests</span>
-              <span class="stat-value">{stats.questsCompleted}</span>
+              <span class="stat-value">{profile?.quests_completed ?? 0}</span>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  </div>
+{:else if ready && !session}
+  <div class="profile-page">
+    <div class="profile-content" style="padding-top: 60px; text-align: center;">
+      <p class="muted">Redirecting to login...</p>
     </div>
   </div>
 {/if}
@@ -187,7 +363,6 @@
     position: relative;
     width: 100%;
     height: 220px;
-    background: linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot));
     overflow: hidden;
     cursor: pointer;
   }
@@ -260,6 +435,13 @@
     border: 4px solid var(--bg);
     box-shadow: 0 0 0 1px var(--line);
     cursor: pointer;
+    overflow: hidden;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .change-avatar-hint {
@@ -308,6 +490,9 @@
     padding: 4px 8px;
     border-radius: 8px;
     transition: background 150ms;
+    background: transparent;
+    border: 0;
+    font-family: inherit;
   }
 
   .profile-bio:hover {
@@ -362,11 +547,45 @@
     cursor: pointer;
     transition: border-color 150ms, color 150ms;
     text-align: left;
+    font-family: inherit;
   }
 
-  .preset-btn:hover {
+  .preset-btn:hover,
+  .preset-btn.selected {
     border-color: var(--accent);
     color: var(--ink);
+  }
+
+  .bio-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .bio-save-btn,
+  .bio-cancel-btn {
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 0;
+    font-family: inherit;
+  }
+
+  .bio-save-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
+    color: #fff;
+  }
+
+  .bio-save-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .bio-cancel-btn {
+    background: var(--card-soft);
+    color: var(--muted);
+    border: 1px solid var(--line);
   }
 
   .level-section {
@@ -426,6 +645,7 @@
     cursor: pointer;
     border: 0;
     transition: background 150ms, opacity 150ms;
+    font-family: inherit;
   }
 
   .action-options {
