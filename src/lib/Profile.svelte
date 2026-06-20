@@ -13,6 +13,8 @@
   let selectedBio = $state("");
   let error = $state(null);
   let activeTab = $state("overview");
+  let badgesData = $state([]);
+  let hoveredBadge = $state(null);
 
   const presetBios = [
     "Learning something new every day 🚀",
@@ -39,13 +41,24 @@
     { id: "leaderboard", label: "Leaderboard" },
   ];
 
-  const sampleBadges = [
-    { name: "Early Adopter", icon: "🌟", color: "#ffd700" },
-    { name: "Quest Master", icon: "⚔️", color: "#ff3b12" },
-    { name: "Top Contributor", icon: "🏆", color: "#00bfff" },
-    { name: "Speed Runner", icon: "⚡", color: "#9b59b6" },
-    { name: "Team Player", icon: "🤝", color: "#2ecc71" },
-  ];
+  async function loadBadges() {
+    try {
+      const res = await fetch(`${basePath}assets/badges/badges.json`);
+      if (res.ok) {
+        badgesData = await res.json();
+      }
+    } catch {
+      // Use empty array if badges fail to load
+    }
+  }
+
+  $effect(() => {
+    loadBadges();
+  });
+
+  function getBadgeById(id) {
+    return badgesData.find((b) => b.id === id);
+  }
 
   function getInitials(name) {
     if (!name) return "?";
@@ -308,80 +321,53 @@
         style="background: {profile?.banner_url || 'linear-gradient(135deg, var(--accent-dark), var(--accent), var(--accent-hot))'}"
       >
         <div class="banner-overlay"></div>
-        <div class="banner-content">
-          <span class="banner-username">{profile?.name || session?.name || "User"}</span>
-          <div class="banner-socials">
-            <span class="banner-social">🌐</span>
-            <span class="banner-social">🐦</span>
-          </div>
-        </div>
+        <span class="change-banner-hint">Change banner</span>
       </div>
 
       <div class="profile-content">
         <div class="profile-header">
-          <div class="profile-left">
-            <div class="profile-identity">
-              <span
-                class="profile-avatar"
-                role="button"
-                tabindex="0"
-                title="Click to change profile picture"
-                onclick={changeAvatar}
-                onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
-              >
-                {profile?.avatar_url
-                  ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
-                  : getInitials(profile?.name || session?.name || "User")}
-                <span class="change-avatar-hint">Change</span>
-              </span>
-              <div class="profile-meta">
-                <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
-                <div class="profile-badges">
-                  {#each (profile?.badges || sampleBadges) as badge}
-                    <span class="profile-badge" style="background: {badge.color}20; color: {badge.color}; border-color: {badge.color}40;">
-                      {badge.icon} {badge.name}
+          <div class="profile-identity">
+            <span
+              class="profile-avatar"
+              role="button"
+              tabindex="0"
+              title="Click to change profile picture"
+              onclick={changeAvatar}
+              onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
+            >
+              {profile?.avatar_url
+                ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
+                : getInitials(profile?.name || session?.name || "User")}
+              <span class="change-avatar-hint">Change</span>
+            </span>
+            <div class="profile-meta">
+              <h1 class="profile-username">{profile?.name || session?.name || "User"}</h1>
+              <div class="profile-badges">
+                {#each (profile?.badges || badgesData) as badge}
+                  {@const badgeInfo = typeof badge === 'string' ? getBadgeById(badge) : badge}
+                  {#if badgeInfo}
+                    <span
+                      class="profile-badge"
+                      style="background: {badgeInfo.color}20; color: {badgeInfo.color}; border-color: {badgeInfo.color}40;"
+                      role="button"
+                      tabindex="0"
+                      onmouseenter={() => hoveredBadge = badgeInfo.id}
+                      onmouseleave={() => hoveredBadge = null}
+                    >
+                      {#if badgeInfo.image}
+                        <img src="{basePath}assets/badges/{badgeInfo.image}" alt="{badgeInfo.name}" class="badge-img" />
+                      {:else}
+                        <span class="badge-icon">{badgeInfo.icon}</span>
+                      {/if}
+                      {#if hoveredBadge === badgeInfo.id}
+                        <span class="badge-tooltip">
+                          <strong>{badgeInfo.name}</strong>
+                          <span>{badgeInfo.description}</span>
+                        </span>
+                      {/if}
                     </span>
-                  {/each}
-                </div>
-              </div>
-            </div>
-
-            <div class="quick-stats">
-              <div class="quick-stat">
-                <span class="quick-stat-value">{profile?.worlds_completed ?? 0}</span>
-                <span class="quick-stat-label">Worlds</span>
-              </div>
-              <div class="quick-stat">
-                <span class="quick-stat-value">{profile?.quests_completed ?? 0}</span>
-                <span class="quick-stat-label">Quests</span>
-              </div>
-              <div class="quick-stat">
-                <span class="quick-stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
-                <span class="quick-stat-label">Points</span>
-              </div>
-            </div>
-
-            <div class="badges-row">
-              {#each sampleBadges as badge}
-                <div class="badge-item" style="background: {badge.color}15; border-color: {badge.color}30;">
-                  <span class="badge-icon">{badge.icon}</span>
-                </div>
-              {/each}
-            </div>
-
-            <div class="profile-bottom-bar">
-              <div class="level-circle">
-                <span class="level-number">{profile?.level ?? 1}</span>
-              </div>
-              <div class="xp-section">
-                <div class="xp-bar-track">
-                  <div class="xp-bar-fill" style="width: {xpProgress}%"></div>
-                </div>
-                <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
-              </div>
-              <div class="bottom-actions">
-                <button class="bottom-btn">💬</button>
-                <button class="bottom-btn">ℹ️</button>
+                  {/if}
+                {/each}
               </div>
             </div>
           </div>
@@ -393,41 +379,57 @@
                 <span class="ranking-value">#{profile?.rank ?? 9999}</span>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div class="detailed-stats">
-              <div class="stat-row">
-                <span class="stat-label">Ranked Score</span>
-                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Hit Accuracy</span>
-                <span class="stat-value">98.66%</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Play Count</span>
-                <span class="stat-value">{profile?.quests_completed ?? 0}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Total Score</span>
-                <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Total Hits</span>
-                <span class="stat-value">{(profile?.quests_completed ?? 0) * 12}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Hits per Play</span>
-                <span class="stat-value">{(profile?.quests_completed ?? 0) > 0 ? Math.round((profile?.quests_completed ?? 0) * 12 / (profile?.quests_completed ?? 1)) : 0}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Maximum Combo</span>
-                <span class="stat-value">{Math.max(10, (profile?.quests_completed ?? 0) * 3)}</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Replays Watched</span>
-                <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
-              </div>
+        <div class="profile-stats-section">
+          <div class="stat-item">
+            <span class="stat-label">Level</span>
+            <span class="stat-value">{profile?.level ?? 1}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">XP</span>
+            <span class="stat-value">{profile?.xp ?? 0} / {profile?.xp_next ?? 100}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Worlds Created</span>
+            <span class="stat-value">{profile?.worlds_created ?? 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Worlds Completed</span>
+            <span class="stat-value">{profile?.worlds_completed ?? 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Courses Enrolled</span>
+            <span class="stat-value">{profile?.courses_enrolled ?? 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Courses Completed</span>
+            <span class="stat-value">{profile?.courses_completed ?? 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Quests Completed</span>
+            <span class="stat-value">{profile?.quests_completed ?? 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Points</span>
+            <span class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div class="profile-bottom-bar">
+          <div class="level-circle">
+            <span class="level-number">{profile?.level ?? 1}</span>
+          </div>
+          <div class="xp-section">
+            <div class="xp-bar-track">
+              <div class="xp-bar-fill" style="width: {xpProgress}%"></div>
             </div>
+            <span class="xp-text">{profile?.xp ?? 0} / {profile?.xp_next ?? 100} XP</span>
+          </div>
+          <div class="bottom-actions">
+            <button class="bottom-btn">💬</button>
+            <button class="bottom-btn">ℹ️</button>
           </div>
         </div>
 
@@ -446,7 +448,7 @@
         <div class="tab-content">
           {#if activeTab === "overview"}
             <div class="tab-panel">
-              <p class="muted">Welcome to {profile?.name || session?.name || "User"}'s profile!</p>
+              <p class="muted">Profile overview</p>
             </div>
           {:else if activeTab === "worlds"}
             <div class="tab-panel">
@@ -512,7 +514,7 @@
   .profile-banner {
     position: relative;
     width: 100%;
-    height: 240px;
+    height: 220px;
     overflow: hidden;
     cursor: pointer;
   }
@@ -527,40 +529,6 @@
       rgba(255, 255, 255, 0.03) 20px,
       rgba(255, 255, 255, 0.03) 40px
     );
-  }
-
-  .banner-content {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 32px;
-    z-index: 1;
-  }
-
-  .banner-username {
-    font-size: 36px;
-    font-weight: 900;
-    color: #fff;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    letter-spacing: 2px;
-  }
-
-  .banner-socials {
-    display: flex;
-    gap: 16px;
-  }
-
-  .banner-social {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-    cursor: pointer;
   }
 
   .change-banner-hint {
@@ -592,26 +560,16 @@
   .profile-header {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     gap: 24px;
     margin-top: 24px;
     flex-wrap: wrap;
-  }
-
-  .profile-left {
-    flex: 1;
-    min-width: 300px;
-  }
-
-  .profile-right {
-    width: 280px;
-    flex-shrink: 0;
   }
 
   .profile-identity {
     display: flex;
     gap: 16px;
     align-items: flex-start;
-    margin-bottom: 20px;
   }
 
   .profile-avatar {
@@ -631,12 +589,6 @@
     box-shadow: 0 0 0 1px var(--line);
     cursor: pointer;
     overflow: hidden;
-  }
-
-  .avatar-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
   }
 
   .change-avatar-hint {
@@ -664,7 +616,7 @@
   }
 
   .profile-username {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-size: 26px;
     font-weight: 900;
     line-height: 1.2;
@@ -672,42 +624,86 @@
 
   .profile-badges {
     display: flex;
+    gap: 8px;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 6px;
+    position: relative;
   }
 
   .profile-badge {
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
     border: 1px solid;
-  }
-
-  .quick-stats {
     display: flex;
-    gap: 24px;
-    margin-bottom: 20px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--card) 94%, black);
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 150ms;
+    position: relative;
   }
 
-  .quick-stat {
+  .profile-badge:hover {
+    transform: scale(1.1);
+  }
+
+  .badge-icon {
+    line-height: 1;
+  }
+
+  .badge-img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+
+  .badge-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a2e;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    width: 220px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+  }
+
+  .badge-tooltip strong {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+
+  .badge-tooltip span {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .profile-right {
+    flex-shrink: 0;
+  }
+
+  .rankings {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
 
-  .quick-stat-value {
-    font-size: 22px;
-    font-weight: 900;
-    color: var(--ink);
+  .ranking-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .quick-stat-label {
+  .ranking-label {
     font-size: 12px;
     font-weight: 700;
     color: var(--muted);
@@ -715,34 +711,48 @@
     letter-spacing: 0.5px;
   }
 
-  .badges-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+  .ranking-value {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--ink);
   }
 
-  .badge-item {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    border: 1px solid;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    cursor: pointer;
-    transition: transform 150ms;
+  .profile-stats-section {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 24px;
   }
 
-  .badge-item:hover {
-    transform: scale(1.1);
+  .stat-item {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 94%, black);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-item .stat-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-item .stat-value {
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--ink);
   }
 
   .profile-bottom-bar {
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-top: 20px;
     padding: 12px 16px;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -816,61 +826,6 @@
 
   .bottom-btn:hover {
     border-color: #44505e;
-    color: var(--ink);
-  }
-
-  .rankings {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .ranking-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .ranking-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .ranking-value {
-    font-size: 28px;
-    font-weight: 900;
-    color: var(--ink);
-  }
-
-  .detailed-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--card) 94%, black);
-  }
-
-  .stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .stat-label {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 600;
-  }
-
-  .stat-value {
-    font-size: 15px;
-    font-weight: 800;
     color: var(--ink);
   }
 
@@ -955,14 +910,6 @@
       height: 180px;
     }
 
-    .banner-content {
-      padding: 0 16px;
-    }
-
-    .banner-username {
-      font-size: 24px;
-    }
-
     .profile-header {
       flex-direction: column;
     }
@@ -981,27 +928,23 @@
       justify-content: center;
     }
 
-    .quick-stats {
-      justify-content: center;
-    }
-
-    .badges-row {
-      justify-content: center;
-    }
-
     .rankings {
-      flex-direction: row;
-      justify-content: center;
-      gap: 32px;
+      align-items: center;
     }
 
-    .ranking-item {
-      align-items: center;
+    .profile-stats-section {
+      grid-template-columns: repeat(2, 1fr);
     }
 
     .profile-bottom-bar {
       flex-wrap: wrap;
       justify-content: center;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .profile-stats-section {
+      grid-template-columns: 1fr;
     }
   }
 </style>
