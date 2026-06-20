@@ -4,6 +4,8 @@
   let mobileOpen = $state(false);
   let searchQuery = $state("");
 
+  const basePath = import.meta.env.BASE_URL;
+
   const navLinks = [
     { label: "Projects", href: "/projects" },
     { label: "Modpacks", href: "/modpacks" },
@@ -27,7 +29,7 @@
 <nav class="navbar">
   <div class="nav-inner">
     <a href="/" class="nav-brand">
-      <img class="nav-logo" src="/src/assets/studigo-logo.png" alt="Studigo" />
+      <img class="nav-logo" src="{basePath}studigo-logo.png" alt="Studigo" />
       <span class="nav-name">Studigo</span>
     </a>
 

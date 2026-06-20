@@ -3,6 +3,7 @@ const config = window.STUDIGO_CONFIG || {};
 const SUPABASE_URL = config.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY || "";
 const AUTH_URL = config.AUTH_URL || "https://diphie.github.io/studigo-auth/";
+const BASE = import.meta.env.BASE_URL || "/";
 
 const SESSION_KEY = "studigo_session";
 
@@ -17,19 +18,24 @@ export function isReady() {
   return readyState;
 }
 
+function getCurrentUrl() {
+  // Use the full current URL — the auth page will parse and redirect back to it
+  return window.location.href;
+}
+
 export function getAuthUrl(returnTo) {
   const url = new URL(AUTH_URL);
-  url.searchParams.set("returnTo", returnTo || window.location.href);
+  url.searchParams.set("returnTo", returnTo || getCurrentUrl());
   return url.toString();
 }
 
 export function goToLogin() {
-  window.location.href = getAuthUrl(window.location.href);
+  window.location.href = getAuthUrl(getCurrentUrl());
 }
 
 export function goToSignup() {
   const url = new URL(AUTH_URL);
-  url.searchParams.set("returnTo", window.location.href);
+  url.searchParams.set("returnTo", getCurrentUrl());
   url.hash = "#signup";
   window.location.href = url.toString();
 }

@@ -1,4 +1,6 @@
 <script>
+  const basePath = import.meta.env.BASE_URL;
+
   const footerSections = [
     {
       title: "Platform",
@@ -33,7 +35,7 @@
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img class="footer-logo" src="/src/assets/studigo-logo.png" alt="Studigo" />
+      <img class="footer-logo" src="{basePath}studigo-logo.png" alt="Studigo" />
       <p class="footer-tagline">
         The open-source platform for discovering, sharing, and managing educational resources.
       </p>
