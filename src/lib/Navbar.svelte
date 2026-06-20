@@ -7,10 +7,12 @@
   const basePath = import.meta.env.BASE_URL;
 
   const navLinks = [
-    { label: "Projects", href: "/projects" },
-    { label: "Modpacks", href: "/modpacks" },
-    { label: "Plugins", href: "/plugins" },
-    { label: "Resources", href: "/resources" },
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Courses", href: "/courses" },
+    { label: "Worlds", href: "/worlds" },
+    { label: "Quests", href: "/quests" },
+    { label: "Social", href: "/social" },
+    { label: "Rankings", href: "/rankings" },
   ];
 
   function toggleMobile() {

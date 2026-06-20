@@ -3,30 +3,29 @@
 
   const footerSections = [
     {
-      title: "Platform",
+      title: "Explore",
       links: [
-        { label: "Projects", href: "/projects" },
-        { label: "Modpacks", href: "/modpacks" },
-        { label: "Plugins", href: "/plugins" },
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Courses", href: "/courses" },
+        { label: "Quests", href: "/quests" },
         { label: "Resources", href: "/resources" },
       ],
     },
     {
-      title: "Support",
+      title: "Community",
       links: [
-        { label: "Documentation", href: "/docs" },
-        { label: "FAQ", href: "/faq" },
-        { label: "Status", href: "/status" },
-        { label: "Contact", href: "/contact" },
+        { label: "Worlds", href: "/worlds" },
+        { label: "Social", href: "/social" },
+        { label: "Rankings", href: "/rankings" },
       ],
     },
     {
-      title: "Organization",
+      title: "Studigo",
       links: [
         { label: "About", href: "/about" },
-        { label: "Blog", href: "/blog" },
-        { label: "Brand", href: "/brand" },
-        { label: "Terms of Service", href: "/terms" },
+        { label: "Updates", href: "/updates" },
+        { label: "team", href: "/team" },
+        { label: "Status", href: "/status" },
       ],
     },
   ];
@@ -37,7 +36,7 @@
     <div class="footer-brand">
       <img class="footer-logo" src="{basePath}studigo-logo.png" alt="Studigo" />
       <p class="footer-tagline">
-        The open-source platform for discovering, sharing, and managing educational resources.
+        Studigo.club is a social study platform that gamifies learning with friends using focus sessions, streaks, and friendly competition.
       </p>
       <div class="footer-social">
         <a href="https://github.com/studigoclub" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
@@ -72,7 +71,7 @@
 
   <div class="footer-bottom">
     <div class="footer-bottom-inner">
-      <p class="footer-copy">&copy; {new Date().getFullYear()} Studigo. Open source under MIT.</p>
+      <p class="footer-copy">&copy; {new Date().getFullYear()} Studigo.</p>
       <div class="footer-bottom-links">
         <a href="/privacy" class="footer-bottom-link">Privacy</a>
         <a href="/terms" class="footer-bottom-link">Terms</a>
