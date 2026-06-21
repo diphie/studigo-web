@@ -387,9 +387,11 @@
               onclick={changeAvatar}
               onkeydown={(e) => { if (e.key === "Enter") changeAvatar(); }}
             >
-              {profile?.avatar_url
-                ? `<img src="${profile.avatar_url}" alt="Avatar" class="avatar-img" />`
-                : getInitials(profile?.name || session?.name || "User")}
+              {#if profile?.avatar_url}
+                <img src="{profile.avatar_url}" alt="Avatar" class="avatar-img" />
+              {:else}
+                {getInitials(profile?.name || session?.name || "User")}
+              {/if}
               <span class="change-avatar-hint">Change</span>
             </span>
             <div class="profile-meta">

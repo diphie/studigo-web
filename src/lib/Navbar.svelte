@@ -2,8 +2,12 @@
   import { getSession, isReady, goToLogin, goToSignup } from "../auth.svelte.js";
 
   let mobileOpen = $state(false);
+  let avatarUrl = $state(null);
 
   const basePath = import.meta.env.BASE_URL;
+  const config = window.STUDIGO_CONFIG || {};
+  const SUPABASE_URL = config.SUPABASE_URL || "";
+  const SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY || "";
 
   const navLinks = [
     { label: "Dashboard", href: `${basePath}dashboard` },
@@ -27,6 +31,36 @@
       .toUpperCase()
       .slice(0, 2);
   }
+
+  async function loadAvatar() {
+    const session = getSession();
+    if (!session?.userId || !SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${session.userId}&select=avatar_url`,
+        {
+          headers: {
+            apiKey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0 && data[0].avatar_url) {
+          avatarUrl = data[0].avatar_url;
+        }
+      }
+    } catch {
+      // Silently fail
+    }
+  }
+
+  $effect(() => {
+    if (isReady() && getSession()?.userId) {
+      loadAvatar();
+    }
+  });
 </script>
 
 <nav class="navbar">
@@ -45,7 +79,11 @@
     <div class="nav-actions">
       {#if isReady() && getSession()}
         <a href="{basePath}profile" class="nav-profile">
-          <span class="nav-avatar">{getInitials(getSession().name)}</span>
+          {#if avatarUrl}
+            <img src="{avatarUrl}" alt="Avatar" class="nav-avatar-img" />
+          {:else}
+            <span class="nav-avatar">{getInitials(getSession().name)}</span>
+          {/if}
           <span class="nav-username">{getSession().name || "User"}</span>
         </a>
       {:else}
@@ -69,7 +107,11 @@
       <div class="mobile-actions">
         {#if isReady() && getSession()}
           <a href="{basePath}profile" class="mobile-profile">
-            <span class="nav-avatar">{getInitials(getSession().name)}</span>
+            {#if avatarUrl}
+              <img src="{avatarUrl}" alt="Avatar" class="nav-avatar-img" />
+            {:else}
+              <span class="nav-avatar">{getInitials(getSession().name)}</span>
+            {/if}
             <span class="nav-username">{getSession().name || "User"}</span>
           </a>
         {:else}
@@ -177,6 +219,14 @@
     color: #fff;
     font-size: 13px;
     font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .nav-avatar-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
     flex-shrink: 0;
   }
 
