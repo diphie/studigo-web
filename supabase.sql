@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   banner_url TEXT,
   avatar_url TEXT,
   badges TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

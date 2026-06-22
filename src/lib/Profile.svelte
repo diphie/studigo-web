@@ -15,6 +15,10 @@
   let activeTab = $state("overview");
   let badgesData = $state([]);
   let hoveredBadge = $state(null);
+  let searchQuery = $state("");
+  let searchResults = $state([]);
+  let searching = $state(false);
+  let searchTimeout = $state(null);
 
   const presetBios = [
     "Learning something new every day 🚀",
@@ -91,7 +95,7 @@
           }
         ),
         fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?select=level`,
+          `${SUPABASE_URL}/rest/v1/profiles?select=level,created_at`,
           {
             headers: {
               apiKey: SUPABASE_ANON_KEY,
@@ -152,8 +156,21 @@
 
       if (allRes.ok) {
         const allProfiles = await allRes.json();
+        // Sort by level DESC, then created_at ASC (earlier = better rank on tie)
+        const sorted = [...allProfiles].sort((a, b) => {
+          const levelDiff = (b.level ?? 1) - (a.level ?? 1);
+          if (levelDiff !== 0) return levelDiff;
+          return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        });
         const myLevel = profile?.level ?? 1;
-        const rank = allProfiles.filter((p) => (p.level ?? 1) > myLevel).length + 1;
+        const myCreated = profile?.created_at || new Date().toISOString();
+        const rank = sorted.filter((p) => {
+          const pLevel = p.level ?? 1;
+          const pCreated = p.created_at || new Date().toISOString();
+          if (pLevel > myLevel) return true;
+          if (pLevel === myLevel && pCreated < myCreated) return true;
+          return false;
+        }).length + 1;
         if (profile && profile.rank !== rank) {
           profile.rank = rank;
           saveProfile({ ...profile, rank }, false);
@@ -345,6 +362,46 @@
     }
   });
 
+  async function searchProfiles() {
+    const query = searchQuery.trim();
+    if (!query || query.length < 1) {
+      searchResults = [];
+      searching = false;
+      return;
+    }
+
+    searching = true;
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?select=id,name,level,xp,total_points,avatar_url,badges&name=ilike.*${encodeURIComponent(query)}*&order=level.desc`,
+        {
+          headers: {
+            apiKey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        // Filter out the current user
+        searchResults = data.filter((p) => p.id !== session.userId).slice(0, 20);
+      } else {
+        searchResults = [];
+      }
+    } catch {
+      searchResults = [];
+    }
+    searching = false;
+  }
+
+  function handleSearchInput(e) {
+    searchQuery = e.target.value;
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      searchProfiles();
+    }, 300);
+  }
+
   let xpProgress = $derived(
     profile ? ((profile.xp ?? 0) / (profile.xp_next ?? 100)) * 100 : 0
   );
@@ -432,6 +489,40 @@
                 <span class="ranking-label">Global Ranking</span>
                 <span class="ranking-value">#{profile?.rank ?? 9999}</span>
               </div>
+            </div>
+
+            <div class="friends-section">
+              <span class="friends-label">Find Friends</span>
+              <div class="friends-search">
+                <input
+                  type="text"
+                  class="friends-search-input"
+                  placeholder="Search by username..."
+                  value={searchQuery}
+                  oninput={handleSearchInput}
+                />
+                {#if searching}
+                  <span class="friends-search-spinner"></span>
+                {/if}
+              </div>
+              {#if searchResults.length > 0}
+                <div class="friends-results">
+                  {#each searchResults as result}
+                    <div class="friend-result">
+                      <span class="friend-result-avatar">
+                        {getInitials(result.name)}
+                      </span>
+                      <div class="friend-result-info">
+                        <span class="friend-result-name">{result.name}</span>
+                        <span class="friend-result-level">Lv.{result.level ?? 1}</span>
+                      </div>
+                      <span class="friend-result-xp">{(result.total_points ?? 0).toLocaleString()} pts</span>
+                    </div>
+                  {/each}
+                </div>
+              {:else if searchQuery.trim().length > 0 && !searching}
+                <div class="friends-no-results">No users found</div>
+              {/if}
             </div>
           </div>
         </div>
@@ -722,22 +813,32 @@
 
   .profile-right {
     flex-shrink: 0;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .rankings {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 
   .ranking-item {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card) 94%, black);
   }
 
   .ranking-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--muted);
     text-transform: uppercase;
@@ -745,9 +846,144 @@
   }
 
   .ranking-value {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 900;
     color: var(--ink);
+  }
+
+  .friends-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    background: color-mix(in srgb, var(--card) 94%, black);
+  }
+
+  .friends-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .friends-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .friends-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card-soft);
+    color: var(--ink);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 150ms;
+  }
+
+  .friends-search-input:focus {
+    border-color: var(--accent);
+  }
+
+  .friends-search-input::placeholder {
+    color: var(--muted);
+  }
+
+  .friends-search-spinner {
+    position: absolute;
+    right: 10px;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: friends-spin 600ms linear infinite;
+  }
+
+  @keyframes friends-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .friends-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .friend-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--card-soft);
+    transition: background 150ms;
+    cursor: default;
+  }
+
+  .friend-result:hover {
+    background: color-mix(in srgb, var(--card-soft) 90%, var(--accent));
+  }
+
+  .friend-result-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hot));
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .friend-result-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .friend-result-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .friend-result-level {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .friend-result-xp {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .friends-no-results {
+    padding: 12px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
   }
 
   .profile-bottom-bar {
