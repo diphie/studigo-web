@@ -1,9 +1,9 @@
 [
   {
-    "id": "test-badge",
-    "name": "Test Badge",
-    "description": "A test badge using a custom image.",
-    "image": "test.png",
-    "color": "#ff3b12"
+    "id": "staff-badge",
+    "name": "Staff Badge",
+    "description": "Member of the Studigo Staff Team",
+    "image": "staff.png",
+    "color": "#ff400b"
   }
 ]
