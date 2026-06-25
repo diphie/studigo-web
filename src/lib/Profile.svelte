@@ -1,5 +1,6 @@
 <script>
   import { getSession, isReady } from "../auth.svelte.js";
+  import { fly } from "svelte/transition";
 
   const basePath = import.meta.env.BASE_URL;
   const session = getSession();
@@ -95,7 +96,7 @@
           }
         ),
         fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?select=level,created_at`,
+          `${SUPABASE_URL}/rest/v1/profiles?select=level,xp,created_at`,
           {
             headers: {
               apiKey: SUPABASE_ANON_KEY,
@@ -156,19 +157,19 @@
 
       if (allRes.ok) {
         const allProfiles = await allRes.json();
-        // Sort by level DESC, then created_at ASC (earlier = better rank on tie)
+        // Sort by XP DESC, then created_at ASC (earlier = better rank on tie)
         const sorted = [...allProfiles].sort((a, b) => {
-          const levelDiff = (b.level ?? 1) - (a.level ?? 1);
-          if (levelDiff !== 0) return levelDiff;
+          const xpDiff = (b.xp ?? 0) - (a.xp ?? 0);
+          if (xpDiff !== 0) return xpDiff;
           return new Date(a.created_at || 0) - new Date(b.created_at || 0);
         });
-        const myLevel = profile?.level ?? 1;
+        const myXp = profile?.xp ?? 0;
         const myCreated = profile?.created_at || new Date().toISOString();
         const rank = sorted.filter((p) => {
-          const pLevel = p.level ?? 1;
+          const pXp = p.xp ?? 0;
           const pCreated = p.created_at || new Date().toISOString();
-          if (pLevel > myLevel) return true;
-          if (pLevel === myLevel && pCreated < myCreated) return true;
+          if (pXp > myXp) return true;
+          if (pXp === myXp && pCreated < myCreated) return true;
           return false;
         }).length + 1;
         if (profile && profile.rank !== rank) {
@@ -405,6 +406,26 @@
   let xpProgress = $derived(
     profile ? ((profile.xp ?? 0) / (profile.xp_next ?? 100)) * 100 : 0
   );
+
+  let tabBarStyle = $state("");
+  let tabsContainerEl = $state(null);
+
+  function updateTabIndicator() {
+    if (!tabsContainerEl) return;
+    const activeBtn = tabsContainerEl.querySelector(".profile-tab.active");
+    if (!activeBtn) return;
+    const containerRect = tabsContainerEl.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    const left = btnRect.left - containerRect.left;
+    const width = btnRect.width;
+    tabBarStyle = `transform: translateX(${left}px); width: ${width}px;`;
+  }
+
+  $effect(() => {
+    // Update indicator whenever activeTab changes
+    activeTab;
+    requestAnimationFrame(updateTabIndicator);
+  });
 </script>
 
 {#if session && !loading}
@@ -543,7 +564,7 @@
           </div>
         </div>
 
-        <div class="profile-tabs">
+        <div class="profile-tabs" bind:this={tabsContainerEl}>
           {#each tabs as tab}
             <button
               class="profile-tab"
@@ -553,54 +574,57 @@
               {tab.label}
             </button>
           {/each}
+          <div class="tab-indicator" style={tabBarStyle}></div>
         </div>
 
         <div class="tab-content">
-          {#if activeTab === "overview"}
-            <div class="tab-panel">
-              <p class="muted">Profile overview</p>
-            </div>
-          {:else if activeTab === "worlds"}
-            <div class="tab-panel">
-              <div class="stat-card">
-                <h3 class="stat-title">Worlds Created</h3>
-                <p class="stat-value">{profile?.worlds_created ?? 0}</p>
+          {#key activeTab}
+            {#if activeTab === "overview"}
+              <div class="tab-panel" transition:fly={{ y: 12, duration: 200 }}>
+                <p class="muted">Profile overview</p>
               </div>
-              <div class="stat-card">
-                <h3 class="stat-title">Worlds Completed</h3>
-                <p class="stat-value">{profile?.worlds_completed ?? 0}</p>
+            {:else if activeTab === "worlds"}
+              <div class="tab-panel" transition:fly={{ y: 12, duration: 200 }}>
+                <div class="stat-card">
+                  <h3 class="stat-title">Worlds Created</h3>
+                  <p class="stat-value">{profile?.worlds_created ?? 0}</p>
+                </div>
+                <div class="stat-card">
+                  <h3 class="stat-title">Worlds Completed</h3>
+                  <p class="stat-value">{profile?.worlds_completed ?? 0}</p>
+                </div>
               </div>
-            </div>
-          {:else if activeTab === "quests"}
-            <div class="tab-panel">
-              <div class="stat-card">
-                <h3 class="stat-title">Quests Completed</h3>
-                <p class="stat-value">{profile?.quests_completed ?? 0}</p>
+            {:else if activeTab === "quests"}
+              <div class="tab-panel" transition:fly={{ y: 12, duration: 200 }}>
+                <div class="stat-card">
+                  <h3 class="stat-title">Quests Completed</h3>
+                  <p class="stat-value">{profile?.quests_completed ?? 0}</p>
+                </div>
               </div>
-            </div>
-          {:else if activeTab === "courses"}
-            <div class="tab-panel">
-              <div class="stat-card">
-                <h3 class="stat-title">Courses Enrolled</h3>
-                <p class="stat-value">{profile?.courses_enrolled ?? 0}</p>
+            {:else if activeTab === "courses"}
+              <div class="tab-panel" transition:fly={{ y: 12, duration: 200 }}>
+                <div class="stat-card">
+                  <h3 class="stat-title">Courses Enrolled</h3>
+                  <p class="stat-value">{profile?.courses_enrolled ?? 0}</p>
+                </div>
+                <div class="stat-card">
+                  <h3 class="stat-title">Courses Completed</h3>
+                  <p class="stat-value">{profile?.courses_completed ?? 0}</p>
+                </div>
               </div>
-              <div class="stat-card">
-                <h3 class="stat-title">Courses Completed</h3>
-                <p class="stat-value">{profile?.courses_completed ?? 0}</p>
+            {:else if activeTab === "leaderboard"}
+              <div class="tab-panel" transition:fly={{ y: 12, duration: 200 }}>
+                <div class="stat-card">
+                  <h3 class="stat-title">Global Rank</h3>
+                  <p class="stat-value">#{profile?.rank ?? 9999}</p>
+                </div>
+                <div class="stat-card">
+                  <h3 class="stat-title">Total Points</h3>
+                  <p class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</p>
+                </div>
               </div>
-            </div>
-          {:else if activeTab === "leaderboard"}
-            <div class="tab-panel">
-              <div class="stat-card">
-                <h3 class="stat-title">Global Rank</h3>
-                <p class="stat-value">#{profile?.rank ?? 9999}</p>
-              </div>
-              <div class="stat-card">
-                <h3 class="stat-title">Total Points</h3>
-                <p class="stat-value">{(profile?.total_points ?? 0).toLocaleString()}</p>
-              </div>
-            </div>
-          {/if}
+            {/if}
+          {/key}
         </div>
       </div>
     {/if}
@@ -1068,6 +1092,7 @@
   }
 
   .profile-tabs {
+    position: relative;
     display: flex;
     gap: 4px;
     margin-top: 24px;
@@ -1083,10 +1108,9 @@
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color 150ms, border-color 150ms;
     white-space: nowrap;
     font-family: inherit;
+    transition: color 150ms;
   }
 
   .profile-tab:hover {
@@ -1095,7 +1119,16 @@
 
   .profile-tab.active {
     color: var(--accent);
-    border-bottom-color: var(--accent);
+  }
+
+  .tab-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: var(--accent);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1), width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
   }
 
   .tab-content {
